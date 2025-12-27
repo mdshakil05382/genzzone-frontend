@@ -106,6 +106,7 @@ export interface CreateOrderData {
   product_id: number;
   product_size: string;
   quantity: number;
+  order_note?: string;
 }
 
 export interface CartCheckoutData {

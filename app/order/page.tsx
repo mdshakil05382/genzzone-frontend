@@ -25,7 +25,17 @@ function OrderPageContent() {
     phone_number: '',
     product_size: '',
     quantity: 1,
+    order_note: '',
   });
+  
+  // Size options (excluding the placeholder)
+  const sizeOptions = [
+    { value: 'S', label: 'S' },
+    { value: 'M', label: 'M' },
+    { value: 'L', label: 'L' },
+    { value: 'XL', label: 'XL' },
+    { value: 'XXL', label: 'XXL' },
+  ];
   
   const [showJsonPreview, setShowJsonPreview] = useState(false);
   
@@ -45,7 +55,7 @@ function OrderPageContent() {
   useEffect(() => {
     async function fetchProduct() {
       if (!productId) {
-        setError('No product selected');
+        setError('পণ্য নির্বাচন করা হয়নি');
         setLoading(false);
         return;
       }
@@ -55,7 +65,7 @@ function OrderPageContent() {
         const data = await productApi.getById(productId);
         setProduct(data);
       } catch (err) {
-        setError('Product not found');
+        setError('পণ্য পাওয়া যায়নি');
         console.error(err);
       } finally {
         setLoading(false);
@@ -91,6 +101,7 @@ function OrderPageContent() {
       product_id: productId,
       product_size: formData.product_size.trim() || '',
       quantity: quantity,
+      order_note: formData.order_note.trim() || '',
       unit_price: parseFloat(unitPrice.toFixed(2)),
       product_total: parseFloat(productTotal.toFixed(2)),
       delivery_charge: deliveryCharge,
@@ -108,27 +119,27 @@ function OrderPageContent() {
 
     // Validate form
     if (!formData.customer_name.trim()) {
-      setError('Please enter your name');
+      setError('অনুগ্রহ করে আপনার নাম লিখুন');
       return;
     }
     if (!formData.district) {
-      setError('Please select a delivery location');
+      setError('অনুগ্রহ করে ডেলিভারি এলাকা নির্বাচন করুন');
       return;
     }
     if (!formData.address.trim()) {
-      setError('Please enter your address');
+      setError('অনুগ্রহ করে আপনার ঠিকানা লিখুন');
       return;
     }
     if (!formData.phone_number.trim()) {
-      setError('Please enter your phone number');
+      setError('অনুগ্রহ করে আপনার মোবাইল নাম্বার লিখুন');
       return;
     }
     if (formData.quantity < 1) {
-      setError('Quantity must be at least 1');
+      setError('পরিমাণ কমপক্ষে 1 হতে হবে');
       return;
     }
     if (product && formData.quantity > product.stock) {
-      setError(`Only ${product.stock} items available in stock`);
+      setError(`স্টকে শুধুমাত্র ${product.stock}টি আইটেম রয়েছে`);
       return;
     }
 
@@ -144,6 +155,7 @@ function OrderPageContent() {
         product_id: productId,
         product_size: formData.product_size.trim(),
         quantity: formData.quantity,
+        order_note: formData.order_note.trim() || undefined,
       };
 
       await orderApi.create(orderData);
@@ -158,7 +170,7 @@ function OrderPageContent() {
       setError(
         err.response?.data?.error || 
         err.response?.data?.message || 
-        'Failed to create order. Please try again.'
+        'অর্ডার তৈরি করতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।'
       );
     } finally {
       setSubmitting(false);
@@ -168,7 +180,7 @@ function OrderPageContent() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-16">
-        <div className="text-center text-lg text-gray-600">Loading...</div>
+        <div className="text-center text-lg text-gray-600">লোড হচ্ছে...</div>
       </div>
     );
   }
@@ -181,7 +193,7 @@ function OrderPageContent() {
           onClick={() => router.push('/')}
           className="mx-auto block px-6 py-2 border-2 border-black text-black hover:bg-black hover:text-white transition-colors rounded"
         >
-          Back to Home
+          হোম পেজে ফিরে যান
         </button>
       </div>
     );
@@ -192,9 +204,9 @@ function OrderPageContent() {
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-2xl mx-auto text-center">
           <div className="bg-green-50 border-2 border-green-500 rounded-lg p-8 mb-6">
-            <h2 className="text-2xl font-bold text-green-800 mb-4">Order Placed Successfully!</h2>
-            <p className="text-gray-700 mb-2">Thank you for your order, {formData.customer_name}!</p>
-            <p className="text-gray-600 text-sm">You will be redirected to the home page shortly...</p>
+            <h2 className="text-2xl font-bold text-green-800 mb-4">অর্ডার সফলভাবে দেওয়া হয়েছে!</h2>
+            <p className="text-gray-700 mb-2">আপনার অর্ডারের জন্য ধন্যবাদ, {formData.customer_name}!</p>
+            <p className="text-gray-600 text-sm">আপনাকে শীঘ্রই হোম পেজে নিয়ে যাওয়া হবে...</p>
           </div>
         </div>
       </div>
@@ -219,7 +231,7 @@ function OrderPageContent() {
         </button>
 
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold text-black mb-8">Place Your Order</h1>
+          <h1 className="text-3xl font-bold text-black mb-8">অর্ডার করতে নিচের তথ্যগুলি দিন</h1>
 
           <div className="grid md:grid-cols-2 gap-8">
             {/* Product Summary */}
@@ -261,7 +273,7 @@ function OrderPageContent() {
               {/* Quantity Selector - Full Width */}
               <div className="mb-4">
                 <label htmlFor="quantity" className="block text-sm font-medium text-black mb-2">
-                  Quantity <span className="text-red-500">*</span>
+                  পরিমাণ <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -276,45 +288,45 @@ function OrderPageContent() {
                   className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Available in stock: {product.stock}
+                  In Stock: {product.stock}
                 </p>
               </div>
 
               {/* Delivery Charge Information */}
               <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-                <p className="text-sm font-semibold text-blue-800 mb-1">Delivery Charge:</p>
-                <p className="text-xs text-blue-700">80 BDT inside Dhaka</p>
-                <p className="text-xs text-blue-700">150 BDT outside Dhaka</p>
+                <p className="text-sm font-semibold text-blue-800 mb-1">ডেলিভারি চার্জ:</p>
+                <p className="text-xs text-blue-700">ঢাকা সিটির ভেতরে ৳৮০</p>
+                <p className="text-xs text-blue-700">ঢাকা সিটির বাহিরে ৳১৫০</p>
               </div>
 
               {/* Price Summary - Always visible and updates immediately */}
               <div className="border-t border-gray-200 pt-3 mt-3">
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between text-gray-600">
-                    <span>Product Total:</span>
-                    <span>Tk {(parseFloat(product.current_price) * formData.quantity).toFixed(0)}.00</span>
+                    <span>পণ্যের মোট:</span>
+                    <span>৳{(parseFloat(product.current_price) * formData.quantity).toFixed(0)}.00</span>
                   </div>
                   <div className="flex justify-between text-gray-600">
-                    <span>Delivery Charge:</span>
-                    <span>Tk {getDeliveryCharge()}.00</span>
+                    <span>ডেলিভারি চার্জ:</span>
+                    <span>৳{getDeliveryCharge()}.00</span>
                   </div>
                   <div className="flex justify-between font-bold text-black text-lg pt-2 border-t border-gray-200">
-                    <span>Total:</span>
-                    <span>Tk {((parseFloat(product.current_price) * formData.quantity) + getDeliveryCharge()).toFixed(0)}.00 BDT</span>
+                    <span>মোট:</span>
+                    <span>৳{((parseFloat(product.current_price) * formData.quantity) + getDeliveryCharge()).toFixed(0)}.00</span>
                   </div>
                 </div>
               </div>
 
               {isOutOfStock && (
                 <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm mt-4">
-                  This product is currently out of stock.
+                  এই পণ্যটি বর্তমানে স্টকে নেই।
                 </div>
               )}
             </div>
 
             {/* Order Form */}
             <div className="bg-white rounded-lg p-6 border border-gray-200">
-              <h2 className="text-xl font-semibold text-black mb-6">Customer Information</h2>
+              <h2 className="text-xl font-semibold text-black mb-6">গ্রাহকের তথ্য</h2>
 
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm mb-4">
@@ -325,7 +337,7 @@ function OrderPageContent() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label htmlFor="customer_name" className="block text-sm font-medium text-black mb-2">
-                    Customer Name <span className="text-red-500">*</span>
+                    নাম <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -335,60 +347,13 @@ function OrderPageContent() {
                     onChange={handleInputChange}
                     required
                     className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black"
-                    placeholder="Enter your full name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-black mb-2">
-                    Delivery Location <span className="text-red-500">*</span>
-                  </label>
-                  <div className="space-y-2">
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="radio"
-                        name="district"
-                        value="inside_dhaka"
-                        checked={formData.district === 'inside_dhaka'}
-                        onChange={handleInputChange}
-                        required
-                        className="w-4 h-4 text-black border-2 border-gray-300 focus:ring-2 focus:ring-black focus:ring-offset-0 cursor-pointer"
-                      />
-                      <span className="ml-3 text-black">Inside Dhaka City</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="radio"
-                        name="district"
-                        value="outside_dhaka"
-                        checked={formData.district === 'outside_dhaka'}
-                        onChange={handleInputChange}
-                        className="w-4 h-4 text-black border-2 border-gray-300 focus:ring-2 focus:ring-black focus:ring-offset-0 cursor-pointer"
-                      />
-                      <span className="ml-3 text-black">Outside Dhaka City</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="address" className="block text-sm font-medium text-black mb-2">
-                    Address <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    id="address"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    required
-                    rows={3}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black resize-none"
-                    placeholder="Enter your full address"
+                    placeholder="আপনার নাম"
                   />
                 </div>
 
                 <div>
                   <label htmlFor="phone_number" className="block text-sm font-medium text-black mb-2">
-                    Phone Number <span className="text-red-500">*</span>
+                    মোবাইল নাম্বার <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="tel"
@@ -398,22 +363,102 @@ function OrderPageContent() {
                     onChange={handleInputChange}
                     required
                     className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black"
-                    placeholder="Enter your phone number"
+                    placeholder="১১ ডিজিট মোবাইল নাম্বার"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-black mb-2">
+                    ডেলিভারি এলাকা <span className="text-red-500">*</span>
+                  </label>
+                  <div className="space-y-2">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <div className="flex items-center">
+                        <input
+                          type="radio"
+                          name="district"
+                          value="inside_dhaka"
+                          checked={formData.district === 'inside_dhaka'}
+                          onChange={handleInputChange}
+                          required
+                          className="w-4 h-4 text-black border-2 border-gray-300 focus:outline-none cursor-pointer"
+                        />
+                        <span className="ml-3 text-black">ঢাকা সিটির ভেতরে</span>
+                      </div>
+                      <span className="text-black font-semibold">৳80</span>
+                    </label>
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <div className="flex items-center">
+                        <input
+                          type="radio"
+                          name="district"
+                          value="outside_dhaka"
+                          checked={formData.district === 'outside_dhaka'}
+                          onChange={handleInputChange}
+                          className="w-4 h-4 text-black border-2 border-gray-300 focus:outline-none cursor-pointer"
+                        />
+                        <span className="ml-3 text-black">ঢাকা সিটির বাহিরে</span>
+                      </div>
+                      <span className="text-black font-semibold">৳150</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="address" className="block text-sm font-medium text-black mb-2">
+                    ঠিকানা <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    id="address"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    required
+                    rows={3}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black resize-none"
+                    placeholder="আপনার বাসার সম্পূর্ণ ঠিকানা"
                   />
                 </div>
 
                 <div>
                   <label htmlFor="product_size" className="block text-sm font-medium text-black mb-2">
-                    Product Size
+                    পণ্যের সাইজ
                   </label>
-                  <input
-                    type="text"
-                    id="product_size"
-                    name="product_size"
-                    value={formData.product_size}
+                  <div className="flex gap-2 flex-wrap">
+                    {sizeOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            product_size: prev.product_size === option.value ? '' : option.value,
+                          }));
+                        }}
+                        className={`px-4 py-2 border-2 rounded transition-colors font-medium cursor-pointer ${
+                          formData.product_size === option.value
+                            ? 'bg-black text-white border-black'
+                            : 'bg-white text-black border-gray-300 hover:border-black'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="order_note" className="block text-sm font-medium text-black mb-2">
+                    অর্ডার নোট
+                  </label>
+                  <textarea
+                    id="order_note"
+                    name="order_note"
+                    value={formData.order_note}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black"
-                    placeholder="e.g., S, M, L, XL"
+                    rows={3}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black resize-none"
+                    placeholder="স্পেশাল কিছু বলতে চাইলে লেখুন (অপশনাল)"
                   />
                 </div>
 
@@ -446,7 +491,7 @@ function OrderPageContent() {
                       : 'bg-white text-black hover:bg-black hover:text-white'
                   }`}
                 >
-                  {submitting ? 'Placing Order...' : isOutOfStock ? 'Product Out of Stock' : 'Place Order'}
+                  {submitting ? 'অর্ডার দেওয়া হচ্ছে...' : isOutOfStock ? 'পণ্য স্টকে নেই' : 'অর্ডার করুন'}
                 </button>
               </form>
             </div>
@@ -461,7 +506,7 @@ export default function OrderPage() {
   return (
     <Suspense fallback={
       <div className="container mx-auto px-4 py-16">
-        <div className="text-center text-lg text-gray-600">Loading...</div>
+        <div className="text-center text-lg text-gray-600">লোড হচ্ছে...</div>
       </div>
     }>
       <OrderPageContent />
