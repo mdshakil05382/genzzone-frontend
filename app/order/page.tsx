@@ -17,23 +17,6 @@ function OrderPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Bangladesh districts
-  const districts = [
-    'Dhaka', 'Faridpur', 'Gazipur', 'Gopalganj', 'Jamalpur', 'Kishoreganj',
-    'Madaripur', 'Manikganj', 'Munshiganj', 'Mymensingh', 'Narayanganj', 'Narsingdi',
-    'Netrokona', 'Rajbari', 'Shariatpur', 'Sherpur', 'Tangail',
-    'Bogra', 'Joypurhat', 'Naogaon', 'Natore', 'Nawabganj', 'Pabna',
-    'Rajshahi', 'Sirajgonj',
-    'Dinajpur', 'Gaibandha', 'Kurigram', 'Lalmonirhat', 'Nilphamari',
-    'Panchagarh', 'Rangpur', 'Thakurgaon',
-    'Barguna', 'Barisal', 'Bhola', 'Jhalokati', 'Patuakhali', 'Pirojpur',
-    'Bandarban', 'Brahmanbaria', 'Chandpur', 'Chittagong', 'Comilla',
-    'Cox\'s Bazar', 'Feni', 'Khagrachari', 'Lakshmipur', 'Noakhali', 'Rangamati',
-    'Habiganj', 'Maulvibazar', 'Sunamganj', 'Sylhet',
-    'Bagerhat', 'Chuadanga', 'Jessore', 'Jhenaidah', 'Khulna',
-    'Kushtia', 'Magura', 'Meherpur', 'Narail'
-  ];
-
   // Form state
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -46,10 +29,17 @@ function OrderPageContent() {
   
   const [showJsonPreview, setShowJsonPreview] = useState(false);
   
-  // Calculate delivery charge based on district
+  // Calculate delivery charge based on district selection
   const getDeliveryCharge = () => {
     if (!formData.district) return 0;
-    return formData.district.toLowerCase() === 'dhaka' ? 80 : 150;
+    return formData.district === 'inside_dhaka' ? 80 : 150;
+  };
+
+  // Get district value for API (map to backend format)
+  const getDistrictForAPI = () => {
+    if (formData.district === 'inside_dhaka') return 'Dhaka';
+    if (formData.district === 'outside_dhaka') return 'Outside Dhaka';
+    return formData.district;
   };
 
   useEffect(() => {
@@ -75,10 +65,11 @@ function OrderPageContent() {
   }, [productId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
+    
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'quantity' ? parseInt(value) || 1 : value,
+      [name]: type === 'radio' ? value : (name === 'quantity' ? parseInt(value) || 1 : value),
     }));
   };
   
@@ -94,7 +85,7 @@ function OrderPageContent() {
     
     return {
       customer_name: formData.customer_name.trim() || '',
-      district: formData.district || '',
+      district: getDistrictForAPI() || '',
       address: formData.address.trim() || '',
       phone_number: formData.phone_number.trim() || '',
       product_id: productId,
@@ -121,7 +112,7 @@ function OrderPageContent() {
       return;
     }
     if (!formData.district) {
-      setError('Please select a district');
+      setError('Please select a delivery location');
       return;
     }
     if (!formData.address.trim()) {
@@ -147,7 +138,7 @@ function OrderPageContent() {
     try {
       const orderData: CreateOrderData = {
         customer_name: formData.customer_name.trim(),
-        district: formData.district,
+        district: getDistrictForAPI(),
         address: formData.address.trim(),
         phone_number: formData.phone_number.trim(),
         product_id: productId,
@@ -296,25 +287,23 @@ function OrderPageContent() {
                 <p className="text-xs text-blue-700">150 BDT outside Dhaka</p>
               </div>
 
-              {/* Price Summary */}
-              {formData.district && (
-                <div className="border-t border-gray-200 pt-3 mt-3">
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between text-gray-600">
-                      <span>Product Total:</span>
-                      <span>Tk {(parseFloat(product.current_price) * formData.quantity).toFixed(0)}.00</span>
-                    </div>
-                    <div className="flex justify-between text-gray-600">
-                      <span>Delivery Charge:</span>
-                      <span>Tk {getDeliveryCharge()}.00</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-black text-lg pt-2 border-t border-gray-200">
-                      <span>Total:</span>
-                      <span>Tk {((parseFloat(product.current_price) * formData.quantity) + getDeliveryCharge()).toFixed(0)}.00 BDT</span>
-                    </div>
+              {/* Price Summary - Always visible and updates immediately */}
+              <div className="border-t border-gray-200 pt-3 mt-3">
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Product Total:</span>
+                    <span>Tk {(parseFloat(product.current_price) * formData.quantity).toFixed(0)}.00</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Delivery Charge:</span>
+                    <span>Tk {getDeliveryCharge()}.00</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-black text-lg pt-2 border-t border-gray-200">
+                    <span>Total:</span>
+                    <span>Tk {((parseFloat(product.current_price) * formData.quantity) + getDeliveryCharge()).toFixed(0)}.00 BDT</span>
                   </div>
                 </div>
-              )}
+              </div>
 
               {isOutOfStock && (
                 <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm mt-4">
@@ -351,24 +340,34 @@ function OrderPageContent() {
                 </div>
 
                 <div>
-                  <label htmlFor="district" className="block text-sm font-medium text-black mb-2">
-                    District <span className="text-red-500">*</span>
+                  <label className="block text-sm font-medium text-black mb-2">
+                    Delivery Location <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    id="district"
-                    name="district"
-                    value={formData.district}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black bg-white"
-                  >
-                    <option value="">Select a district</option>
-                    {districts.map((district) => (
-                      <option key={district} value={district}>
-                        {district}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-2">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="district"
+                        value="inside_dhaka"
+                        checked={formData.district === 'inside_dhaka'}
+                        onChange={handleInputChange}
+                        required
+                        className="w-4 h-4 text-black border-2 border-gray-300 focus:ring-2 focus:ring-black focus:ring-offset-0 cursor-pointer"
+                      />
+                      <span className="ml-3 text-black">Inside Dhaka City</span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="district"
+                        value="outside_dhaka"
+                        checked={formData.district === 'outside_dhaka'}
+                        onChange={handleInputChange}
+                        className="w-4 h-4 text-black border-2 border-gray-300 focus:ring-2 focus:ring-black focus:ring-offset-0 cursor-pointer"
+                      />
+                      <span className="ml-3 text-black">Outside Dhaka City</span>
+                    </label>
+                  </div>
                 </div>
 
                 <div>
