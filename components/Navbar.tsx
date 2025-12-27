@@ -2,14 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Search, ShoppingBag, Menu, X } from 'lucide-react';
 import { notificationApi, Notification } from '@/lib/api';
 import { useCart } from '@/contexts/CartContext';
 
 export function Navbar() {
+  const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [orderId, setOrderId] = useState('');
   const [notification, setNotification] = useState<Notification | null>(null);
   const { itemCount } = useCart();
@@ -61,6 +65,29 @@ export function Navbar() {
     }
   };
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery('');
+      setIsSearchOpen(false);
+      closeMobileMenu();
+    }
+  };
+
+  const toggleSearch = () => {
+    setIsSearchOpen(!isSearchOpen);
+    if (!isSearchOpen) {
+      // Focus search input after it appears
+      setTimeout(() => {
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+          searchInput.focus();
+        }
+      }, 100);
+    }
+  };
+
   return (
     <nav className="bg-white sticky top-0 z-50 border-b border-gray-200">
       {/* Top Bar with Logo and Icons */}
@@ -80,9 +107,47 @@ export function Navbar() {
               )}
             </button>
 
-            {/* Search Icon (Desktop Only) */}
+            {/* Search (Desktop Only) */}
             <div className="hidden md:flex items-center gap-4">
-              <Search className="w-5 h-5 text-black cursor-pointer" />
+              {isSearchOpen ? (
+                <form onSubmit={handleSearch} className="flex items-center gap-2">
+                  <input
+                    id="search-input"
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search products..."
+                    className="px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black text-black w-64"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    className="p-2 hover:bg-gray-100 rounded"
+                    aria-label="Search"
+                  >
+                    <Search className="w-5 h-5 text-black" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSearchOpen(false);
+                      setSearchQuery('');
+                    }}
+                    className="p-2 hover:bg-gray-100 rounded"
+                    aria-label="Close search"
+                  >
+                    <X className="w-5 h-5 text-black" />
+                  </button>
+                </form>
+              ) : (
+                <button
+                  onClick={toggleSearch}
+                  className="p-2 hover:bg-gray-100 rounded"
+                  aria-label="Open search"
+                >
+                  <Search className="w-5 h-5 text-black cursor-pointer" />
+                </button>
+              )}
             </div>
 
             {/* Logo */}
@@ -96,8 +161,14 @@ export function Navbar() {
 
             {/* Right Icons */}
             <div className="flex items-center gap-4">
-              {/* Search Icon (Mobile Only) */}
-              <Search className="w-5 h-5 text-black cursor-pointer md:hidden" />
+              {/* Search (Mobile Only) */}
+              <button
+                onClick={toggleSearch}
+                className="md:hidden p-2 hover:bg-gray-100 rounded"
+                aria-label="Open search"
+              >
+                <Search className="w-5 h-5 text-black cursor-pointer" />
+              </button>
               <Link href="/cart" className="relative">
                 <ShoppingBag className="w-5 h-5 text-black cursor-pointer" />
                 {itemCount > 0 && (
@@ -110,6 +181,15 @@ export function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* Notification Bar */}
+      {notification && (
+        <div className="bg-black text-white py-2">
+          <div className="container mx-auto px-4 text-center">
+            <p className="text-xs md:text-sm">{notification.message}</p>
+          </div>
+        </div>
+      )}
 
       {/* Desktop Navigation Bar */}
       <div className="hidden md:block bg-white">
@@ -158,6 +238,43 @@ export function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* Mobile Search Bar */}
+      {isSearchOpen && (
+        <div className="md:hidden border-b border-gray-200 bg-white">
+          <div className="container mx-auto px-4 py-3">
+            <form onSubmit={handleSearch} className="flex items-center gap-2">
+              <input
+                id="mobile-search-input"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search products by name or description..."
+                className="flex-1 px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black text-black"
+                autoFocus
+              />
+              <button
+                type="submit"
+                className="p-2 hover:bg-gray-100 rounded"
+                aria-label="Search"
+              >
+                <Search className="w-5 h-5 text-black" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSearchOpen(false);
+                  setSearchQuery('');
+                }}
+                className="p-2 hover:bg-gray-100 rounded"
+                aria-label="Close search"
+              >
+                <X className="w-5 h-5 text-black" />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
@@ -254,15 +371,6 @@ export function Navbar() {
           </div>
         </div>
       </div>
-
-      {/* Branding Bar */}
-      {notification && (
-        <div className="bg-black text-white py-2">
-          <div className="container mx-auto px-4 text-center">
-            <p className="text-xs md:text-sm">{notification.message}</p>
-          </div>
-        </div>
-      )}
 
       {/* Tracking Modal */}
       {isTrackingModalOpen && (

@@ -8,6 +8,7 @@ import { ProductCard } from '@/components/ProductCard';
 function ProductsPageContent() {
   const searchParams = useSearchParams();
   const category = searchParams.get('category');
+  const search = searchParams.get('search');
   const bestSellingParam = searchParams.get('best_selling');
   const isBestSelling = bestSellingParam === 'true';
   const [products, setProducts] = useState<Product[]>([]);
@@ -24,8 +25,8 @@ function ProductsPageContent() {
           const bestSellingProducts = bestSellingData.map(item => item.product);
           setProducts(bestSellingProducts);
         } else {
-          // Fetch regular products with optional category filter
-          const data = await productApi.getAll(undefined, category || undefined);
+          // Fetch regular products with optional category filter and search
+          const data = await productApi.getAll(search || undefined, category || undefined);
           setProducts(data);
         }
       } catch (err) {
@@ -36,10 +37,11 @@ function ProductsPageContent() {
       }
     }
     fetchProducts();
-  }, [category, isBestSelling]);
+  }, [category, search, isBestSelling]);
 
   const getCategoryTitle = () => {
     if (isBestSelling) return 'Best Selling Products';
+    if (search) return `Search Results for "${search}"`;
     if (!category) return 'All Products';
     const categoryMap: Record<string, string> = {
       men: 'Men\'s Products',
@@ -77,13 +79,23 @@ function ProductsPageContent() {
         ) : products.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-lg text-gray-600">
-              {isBestSelling 
-                ? 'No best selling products available'
-                : category 
-                  ? `No ${category} products available` 
-                  : 'No products available'
+              {search
+                ? `No products found matching "${search}". Try a different search term.`
+                : isBestSelling 
+                  ? 'No best selling products available'
+                  : category 
+                    ? `No ${category} products available` 
+                    : 'No products available'
               }
             </div>
+            {search && (
+              <Link
+                href="/products"
+                className="mt-4 inline-block px-6 py-2 border-2 border-black text-black hover:bg-black hover:text-white transition-colors rounded"
+              >
+                View All Products
+              </Link>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

@@ -2,20 +2,29 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Product, productApi, getImageUrl, orderApi, CreateOrderData } from '@/lib/api';
-import { ArrowLeft } from 'lucide-react';
+import { Product, productApi, getImageUrl, orderApi, CreateOrderData, CreateMultiProductOrderData } from '@/lib/api';
+import { ArrowLeft, Plus, X } from 'lucide-react';
 import Image from 'next/image';
+
+interface OrderItem {
+  product: Product;
+  quantity: number;
+  product_size: string;
+}
 
 function OrderPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const productId = searchParams.get('productId') ? parseInt(searchParams.get('productId')!) : null;
 
-  const [product, setProduct] = useState<Product | null>(null);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [showProductSelector, setShowProductSelector] = useState(false);
+  const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -23,8 +32,6 @@ function OrderPageContent() {
     district: '',
     address: '',
     phone_number: '',
-    product_size: '',
-    quantity: 1,
     order_note: '',
   });
   
@@ -63,7 +70,12 @@ function OrderPageContent() {
       try {
         setLoading(true);
         const data = await productApi.getById(productId);
-        setProduct(data);
+        // Initialize with the first product
+        setOrderItems([{
+          product: data,
+          quantity: 1,
+          product_size: '',
+        }]);
       } catch (err) {
         setError('পণ্য পাওয়া যায়নি');
         console.error(err);
@@ -74,35 +86,101 @@ function OrderPageContent() {
     fetchProduct();
   }, [productId]);
 
+  useEffect(() => {
+    async function fetchAvailableProducts() {
+      if (!showProductSelector) return;
+      
+      try {
+        setLoadingProducts(true);
+        const products = await productApi.getAll();
+        // Filter out products that are already in the order
+        const existingProductIds = orderItems.map(item => item.product.id);
+        const filteredProducts = products.filter(p => !existingProductIds.includes(p.id) && p.stock > 0);
+        setAvailableProducts(filteredProducts);
+      } catch (err) {
+        console.error('Error fetching products:', err);
+      } finally {
+        setLoadingProducts(false);
+      }
+    }
+    fetchAvailableProducts();
+  }, [showProductSelector, orderItems]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'radio' ? value : (name === 'quantity' ? parseInt(value) || 1 : value),
+      [name]: value,
     }));
   };
+
+  const handleItemQuantityChange = (index: number, quantity: number) => {
+    setOrderItems(prev => prev.map((item, i) => 
+      i === index ? { ...item, quantity: Math.max(1, Math.min(quantity, item.product.stock)) } : item
+    ));
+  };
+
+  const handleItemSizeChange = (index: number, size: string) => {
+    setOrderItems(prev => prev.map((item, i) => 
+      i === index ? { ...item, product_size: item.product_size === size ? '' : size } : item
+    ));
+  };
+
+  const handleAddProduct = (product: Product) => {
+    setOrderItems(prev => [...prev, {
+      product,
+      quantity: 1,
+      product_size: '',
+    }]);
+    setShowProductSelector(false);
+  };
+
+  const handleRemoveProduct = (index: number) => {
+    setOrderItems(prev => prev.filter((_, i) => i !== index));
+  };
   
-  // Generate JSON payload preview (for Steadfast API)
+  // Calculate totals
+  const getProductTotal = () => {
+    return orderItems.reduce((sum, item) => {
+      return sum + (parseFloat(item.product.current_price) * item.quantity);
+    }, 0);
+  };
+
+  const getTotalPrice = () => {
+    return getProductTotal() + getDeliveryCharge();
+  };
+
+  // Generate JSON payload preview (for Steadfast API) - supports multiple products
   const getJsonPayload = () => {
-    if (!productId || !product) return null;
+    if (orderItems.length === 0) return null;
     
-    const unitPrice = parseFloat(product.current_price);
-    const quantity = formData.quantity || 1;
-    const productTotal = unitPrice * quantity;
     const deliveryCharge = getDeliveryCharge();
-    const totalPrice = productTotal + deliveryCharge;
+    const productTotal = getProductTotal();
+    const totalPrice = getTotalPrice();
+    
+    // Build products array with all order items
+    const products = orderItems.map(item => {
+      const unitPrice = parseFloat(item.product.current_price);
+      const itemTotal = unitPrice * item.quantity;
+      
+      return {
+        product_id: item.product.id,
+        product_name: item.product.name,
+        product_size: item.product_size.trim() || '',
+        quantity: item.quantity,
+        unit_price: parseFloat(unitPrice.toFixed(2)),
+        product_total: parseFloat(itemTotal.toFixed(2)),
+      };
+    });
     
     return {
       customer_name: formData.customer_name.trim() || '',
       district: getDistrictForAPI() || '',
       address: formData.address.trim() || '',
       phone_number: formData.phone_number.trim() || '',
-      product_id: productId,
-      product_size: formData.product_size.trim() || '',
-      quantity: quantity,
       order_note: formData.order_note.trim() || '',
-      unit_price: parseFloat(unitPrice.toFixed(2)),
+      products: products,
       product_total: parseFloat(productTotal.toFixed(2)),
       delivery_charge: deliveryCharge,
       total_price: parseFloat(totalPrice.toFixed(2)),
@@ -112,8 +190,8 @@ function OrderPageContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!productId || !product) {
-      setError('Product not selected');
+    if (orderItems.length === 0) {
+      setError('অনুগ্রহ করে অন্তত একটি পণ্য যোগ করুন');
       return;
     }
 
@@ -134,31 +212,52 @@ function OrderPageContent() {
       setError('অনুগ্রহ করে আপনার মোবাইল নাম্বার লিখুন');
       return;
     }
-    if (formData.quantity < 1) {
-      setError('পরিমাণ কমপক্ষে 1 হতে হবে');
-      return;
-    }
-    if (product && formData.quantity > product.stock) {
-      setError(`স্টকে শুধুমাত্র ${product.stock}টি আইটেম রয়েছে`);
-      return;
+
+    // Validate all items
+    for (const item of orderItems) {
+      if (item.quantity < 1) {
+        setError(`${item.product.name} এর পরিমাণ কমপক্ষে 1 হতে হবে`);
+        return;
+      }
+      if (item.quantity > item.product.stock) {
+        setError(`${item.product.name} এর জন্য স্টকে শুধুমাত্র ${item.product.stock}টি আইটেম রয়েছে`);
+        return;
+      }
     }
 
     setError(null);
     setSubmitting(true);
 
     try {
-      const orderData: CreateOrderData = {
+      // Build products array for multi-product order
+      const products = orderItems.map(item => {
+        const unitPrice = parseFloat(item.product.current_price);
+        const itemTotal = unitPrice * item.quantity;
+        
+        return {
+          product_id: item.product.id,
+          product_name: item.product.name,
+          product_size: item.product_size.trim() || '',
+          quantity: item.quantity,
+          unit_price: parseFloat(unitPrice.toFixed(2)),
+          product_total: parseFloat(itemTotal.toFixed(2)),
+        };
+      });
+
+      // Create single order with multiple products
+      const orderData: CreateMultiProductOrderData = {
         customer_name: formData.customer_name.trim(),
         district: getDistrictForAPI(),
         address: formData.address.trim(),
         phone_number: formData.phone_number.trim(),
-        product_id: productId,
-        product_size: formData.product_size.trim(),
-        quantity: formData.quantity,
         order_note: formData.order_note.trim() || undefined,
+        products: products,
+        product_total: parseFloat(getProductTotal().toFixed(2)),
+        delivery_charge: getDeliveryCharge(),
+        total_price: parseFloat(getTotalPrice().toFixed(2)),
       };
 
-      await orderApi.create(orderData);
+      await orderApi.createMultiProduct(orderData);
       setSuccess(true);
       
       // Redirect after 3 seconds
@@ -185,7 +284,7 @@ function OrderPageContent() {
     );
   }
 
-  if (error && !product) {
+  if (error && orderItems.length === 0 && !loading) {
     return (
       <div className="container mx-auto px-4 py-16">
         <div className="text-center text-lg text-red-600 mb-4">{error}</div>
@@ -213,11 +312,9 @@ function OrderPageContent() {
     );
   }
 
-  if (!product) {
+  if (orderItems.length === 0 && !loading) {
     return null;
   }
-
-  const isOutOfStock = product.stock === 0;
 
   return (
     <div className="bg-gray-50 min-h-screen">
@@ -238,59 +335,157 @@ function OrderPageContent() {
             <div className="bg-white rounded-lg p-6 border border-gray-200">
               <h2 className="text-xl font-semibold text-black mb-4">Order Summary</h2>
               
-              <div className="flex gap-4 mb-4">
-                {getImageUrl(product.image) ? (
-                  <div className="relative w-24 h-24 flex-shrink-0">
-                    <Image
-                      src={getImageUrl(product.image)!}
-                      alt={product.name}
-                      fill
-                      className="object-cover rounded"
-                      unoptimized
-                    />
-                  </div>
-                ) : (
-                  <div className="w-24 h-24 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
-                    <span className="text-gray-400 text-xs">No Image</span>
-                  </div>
-                )}
-                <div className="flex-1">
-                  <a
-                    href={`/products/${product.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold text-black mb-1 hover:underline cursor-pointer block"
-                  >
-                    {product.name}
-                  </a>
-                  <p className="text-sm text-gray-600 capitalize mb-2">{product.category}</p>
-                  <div className="text-lg font-bold text-black">
-                    Tk {parseFloat(product.current_price).toFixed(0)}.00 BDT
-                  </div>
-                </div>
+              {/* Products List */}
+              <div className="space-y-4 mb-4">
+                {orderItems.map((item, index) => {
+                  const isOutOfStock = item.product.stock === 0;
+                  return (
+                    <div key={`${item.product.id}-${index}`} className="border border-gray-200 rounded p-4">
+                      <div className="flex gap-4 mb-3">
+                        {getImageUrl(item.product.image) ? (
+                          <div className="relative w-20 h-20 flex-shrink-0">
+                            <Image
+                              src={getImageUrl(item.product.image)!}
+                              alt={item.product.name}
+                              fill
+                              className="object-cover rounded"
+                              unoptimized
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-20 h-20 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
+                            <span className="text-gray-400 text-xs">No Image</span>
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <a
+                                href={`/products/${item.product.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-black mb-1 hover:underline cursor-pointer block"
+                              >
+                                {item.product.name}
+                              </a>
+                              <p className="text-sm text-gray-600 capitalize mb-1">{item.product.category}</p>
+                              <div className="text-base font-bold text-black">
+                                Tk {parseFloat(item.product.current_price).toFixed(0)}.00 BDT
+                              </div>
+                            </div>
+                            {orderItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveProduct(index)}
+                                className="text-red-500 hover:text-red-700 p-1"
+                                title="Remove product"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Quantity Selector */}
+                      <div className="mb-3">
+                        <label className="block text-sm font-medium text-black mb-2">
+                          পরিমাণ <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => handleItemQuantityChange(index, parseInt(e.target.value) || 1)}
+                          min={1}
+                          max={item.product.stock}
+                          required
+                          disabled={isOutOfStock}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          In Stock: {item.product.stock}
+                        </p>
+                      </div>
+
+                      {/* Size Selector */}
+                      <div className="mb-2">
+                        <label className="block text-sm font-medium text-black mb-2">
+                          পণ্যের সাইজ
+                        </label>
+                        <div className="flex gap-2 flex-wrap">
+                          {sizeOptions.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => handleItemSizeChange(index, option.value)}
+                              className={`px-3 py-1 text-sm border-2 rounded transition-colors font-medium cursor-pointer ${
+                                item.product_size === option.value
+                                  ? 'bg-black text-white border-black'
+                                  : 'bg-white text-black border-gray-300 hover:border-black'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {isOutOfStock && (
+                        <div className="bg-red-50 border border-red-200 rounded p-2 text-red-700 text-xs mt-2">
+                          এই পণ্যটি বর্তমানে স্টকে নেই।
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              
-              {/* Quantity Selector - Full Width */}
+
+              {/* Add Another Product Button */}
               <div className="mb-4">
-                <label htmlFor="quantity" className="block text-sm font-medium text-black mb-2">
-                  পরিমাণ <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  id="quantity"
-                  name="quantity"
-                  value={formData.quantity}
-                  onChange={handleInputChange}
-                  min={1}
-                  max={product.stock}
-                  required
-                  disabled={isOutOfStock}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black disabled:bg-gray-100 disabled:cursor-not-allowed"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  In Stock: {product.stock}
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowProductSelector(!showProductSelector)}
+                  className="w-full py-2 px-4 border-2 border-dashed border-gray-300 rounded hover:border-black hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-black"
+                >
+                  <Plus className="w-4 h-4" />
+                  আরেকটি পণ্য যোগ করুন
+                </button>
               </div>
+
+              {/* Product Selector */}
+              {showProductSelector && (
+                <div className="mb-4 border-2 border-gray-200 rounded p-4 max-h-64 overflow-y-auto">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-black">পণ্য নির্বাচন করুন</h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowProductSelector(false)}
+                      className="text-gray-500 hover:text-black"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {loadingProducts ? (
+                    <div className="text-center py-4 text-sm text-gray-600">লোড হচ্ছে...</div>
+                  ) : availableProducts.length === 0 ? (
+                    <div className="text-center py-4 text-sm text-gray-600">কোন পণ্য পাওয়া যায়নি</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {availableProducts.map((product) => (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => handleAddProduct(product)}
+                          className="w-full text-left p-2 border border-gray-200 rounded hover:border-black hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="font-medium text-sm text-black">{product.name}</div>
+                          <div className="text-xs text-gray-600">৳{parseFloat(product.current_price).toFixed(0)}.00</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Delivery Charge Information */}
               <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
@@ -304,7 +499,7 @@ function OrderPageContent() {
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between text-gray-600">
                     <span>পণ্যের মোট:</span>
-                    <span>৳{(parseFloat(product.current_price) * formData.quantity).toFixed(0)}.00</span>
+                    <span>৳{getProductTotal().toFixed(0)}.00</span>
                   </div>
                   <div className="flex justify-between text-gray-600">
                     <span>ডেলিভারি চার্জ:</span>
@@ -312,16 +507,10 @@ function OrderPageContent() {
                   </div>
                   <div className="flex justify-between font-bold text-black text-lg pt-2 border-t border-gray-200">
                     <span>মোট:</span>
-                    <span>৳{((parseFloat(product.current_price) * formData.quantity) + getDeliveryCharge()).toFixed(0)}.00</span>
+                    <span>৳{getTotalPrice().toFixed(0)}.00</span>
                   </div>
                 </div>
               </div>
-
-              {isOutOfStock && (
-                <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm mt-4">
-                  এই পণ্যটি বর্তমানে স্টকে নেই।
-                </div>
-              )}
             </div>
 
             {/* Order Form */}
@@ -420,32 +609,6 @@ function OrderPageContent() {
                   />
                 </div>
 
-                <div>
-                  <label htmlFor="product_size" className="block text-sm font-medium text-black mb-2">
-                    পণ্যের সাইজ
-                  </label>
-                  <div className="flex gap-2 flex-wrap">
-                    {sizeOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => {
-                          setFormData(prev => ({
-                            ...prev,
-                            product_size: prev.product_size === option.value ? '' : option.value,
-                          }));
-                        }}
-                        className={`px-4 py-2 border-2 rounded transition-colors font-medium cursor-pointer ${
-                          formData.product_size === option.value
-                            ? 'bg-black text-white border-black'
-                            : 'bg-white text-black border-gray-300 hover:border-black'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
                 <div>
                   <label htmlFor="order_note" className="block text-sm font-medium text-black mb-2">
@@ -484,14 +647,14 @@ function OrderPageContent() {
 
                 <button
                   type="submit"
-                  disabled={submitting || isOutOfStock}
+                  disabled={submitting || orderItems.length === 0 || orderItems.some(item => item.product.stock === 0)}
                   className={`w-full py-3 px-6 rounded border-2 border-black text-base font-medium transition-colors ${
-                    submitting || isOutOfStock
+                    submitting || orderItems.length === 0 || orderItems.some(item => item.product.stock === 0)
                       ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
                       : 'bg-white text-black hover:bg-black hover:text-white'
                   }`}
                 >
-                  {submitting ? 'অর্ডার দেওয়া হচ্ছে...' : isOutOfStock ? 'পণ্য স্টকে নেই' : 'অর্ডার করুন'}
+                  {submitting ? 'অর্ডার দেওয়া হচ্ছে...' : orderItems.some(item => item.product.stock === 0) ? 'কিছু পণ্য স্টকে নেই' : 'অর্ডার করুন'}
                 </button>
               </form>
             </div>
@@ -513,4 +676,6 @@ export default function OrderPage() {
     </Suspense>
   );
 }
+
+
 
