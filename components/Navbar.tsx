@@ -226,7 +226,7 @@ export function Navbar() {
                 </div>
               </div>
             </div>
-            <Link href="/reviews" className="text-sm font-medium text-black hover:underline">
+            <Link href="/customer-reviews" className="text-sm font-medium text-black hover:underline">
               Customer Reviews
             </Link>
             <button 
@@ -356,7 +356,7 @@ export function Navbar() {
             </div>
 
             <Link
-              href="/reviews"
+              href="/customer-reviews"
               className="text-base font-medium text-black hover:underline py-2"
               onClick={closeMobileMenu}
             >

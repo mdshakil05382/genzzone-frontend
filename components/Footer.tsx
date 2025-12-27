@@ -43,7 +43,7 @@ export function Footer() {
               <Link href="/terms-of-service" className="block text-black hover:underline">
                 Terms of Service
               </Link>
-              <Link href="/contact" className="block text-black hover:underline">
+              <Link href="/contact-us" className="block text-black hover:underline">
                 Contact Us
               </Link>
             </div>

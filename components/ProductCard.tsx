@@ -12,7 +12,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const isOutOfStock = product.stock === 0;
 
   return (
-    <div className="group bg-white rounded-lg border border-gray-200 overflow-hidden transition-transform hover:scale-105">
+    <div className="group bg-white rounded-lg border border-gray-200 overflow-hidden transition-transform hover:scale-105 flex flex-col h-full">
       <Link href={`/products/${product.id}`} className="block">
         <div className="relative aspect-[4/5] bg-gray-200 overflow-hidden">
           {getImageUrl(product.image) ? (
@@ -38,14 +38,14 @@ export function ProductCard({ product }: ProductCardProps) {
         </div>
       </Link>
 
-      <div className="p-4">
+      <div className="p-4 flex flex-col flex-1">
         <Link href={`/products/${product.id}`} className="block">
           <div className="text-base font-normal text-black mb-2 line-clamp-2 min-h-[2.5rem] hover:underline">
             {product.name}
           </div>
         </Link>
         
-        <div className="space-y-1 mb-4">
+        <div className="space-y-1 mb-4 min-h-[4rem]">
           {product.has_offer && product.offer_price ? (
             <>
               <div className="text-xs text-gray-500 line-through font-mono">
@@ -69,7 +69,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
         <Link
           href={`/order?productId=${product.id}`}
-          className={`w-full py-2 px-4 rounded border-2 border-black text-sm font-medium transition-colors block text-center ${
+          className={`w-full py-2 px-4 rounded border-2 border-black text-sm font-medium transition-colors block text-center mt-auto ${
             isOutOfStock
               ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed pointer-events-none'
               : 'bg-white text-black hover:bg-black hover:text-white'
