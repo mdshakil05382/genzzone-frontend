@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Product, BestSelling, productApi, bestSellingApi } from '@/lib/api';
 import { ProductCard } from '@/components/ProductCard';
 
