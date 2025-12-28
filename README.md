@@ -149,7 +149,3 @@ Update `NEXT_PUBLIC_API_URL` environment variable to point to your backend.
 ### Image Configuration
 
 Product images are loaded from the backend. The `next.config.ts` file is configured to allow images from your backend domain.
-
-## License
-
-[Your License Here]
