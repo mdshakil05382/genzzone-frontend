@@ -530,11 +530,7 @@ function OrderPageContent() {
                     required
                     rows={3}
                     className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black resize-none"
-                    placeholder={
-                      formData.district === 'inside_dhaka'
-                        ? 'উদাহরণ: ১২৩/৪, রোড নং ৫, ধানমন্ডি, ঢাকা-১২০৫'
-                        : 'উদাহরণ: ৪৫৬, স্টেশন রোড, চট্টগ্রাম-৪০০০'
-                    }
+                    placeholder="বাড়ি/মহল্লা, গ্রাম/শহর, থানা, জেলা"
                   />
                 </div>
 
