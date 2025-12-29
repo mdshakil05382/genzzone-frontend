@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Product, productApi, getImageUrl, orderApi, CreateOrderData, CreateMultiProductOrderData } from '@/lib/api';
+import { Product, productApi, getImageUrl, orderApi, CreateMultiProductOrderData } from '@/lib/api';
 import { ArrowLeft, Plus, X, Minus } from 'lucide-react';
 import Image from 'next/image';
 
@@ -36,14 +36,10 @@ function OrderPageContent() {
   
   // Size options (excluding the placeholder)
   const sizeOptions = [
-    { value: 'S', label: 'S' },
     { value: 'M', label: 'M' },
     { value: 'L', label: 'L' },
     { value: 'XL', label: 'XL' },
-    { value: 'XXL', label: 'XXL' },
   ];
-  
-  const [showJsonPreview, setShowJsonPreview] = useState(false);
   
   // Calculate delivery charge based on district selection
   const getDeliveryCharge = () => {
@@ -77,7 +73,6 @@ function OrderPageContent() {
         }]);
       } catch (err) {
         setError('পণ্য পাওয়া যায়নি');
-        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -97,7 +92,7 @@ function OrderPageContent() {
         const filteredProducts = products.filter(p => !existingProductIds.includes(p.id) && p.stock > 0);
         setAvailableProducts(filteredProducts);
       } catch (err) {
-        console.error('Error fetching products:', err);
+        // Silently handle error
       } finally {
         setLoadingProducts(false);
       }
@@ -106,7 +101,7 @@ function OrderPageContent() {
   }, [showProductSelector, orderItems]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
     
     setFormData(prev => ({
       ...prev,
@@ -148,41 +143,6 @@ function OrderPageContent() {
 
   const getTotalPrice = () => {
     return getProductTotal() + getDeliveryCharge();
-  };
-
-  // Generate JSON payload preview (for Steadfast API) - supports multiple products
-  const getJsonPayload = () => {
-    if (orderItems.length === 0) return null;
-    
-    const deliveryCharge = getDeliveryCharge();
-    const productTotal = getProductTotal();
-    const totalPrice = getTotalPrice();
-    
-    // Build products array with all order items
-    const products = orderItems.map(item => {
-      const unitPrice = parseFloat(item.product.current_price);
-      const itemTotal = unitPrice * item.quantity;
-      
-      return {
-        product_id: item.product.id,
-        product_name: item.product.name,
-        product_size: item.product_size.trim() || '',
-        quantity: item.quantity,
-        unit_price: parseFloat(unitPrice.toFixed(2)),
-        product_total: parseFloat(itemTotal.toFixed(2)),
-      };
-    });
-    
-    return {
-      customer_name: formData.customer_name.trim() || '',
-      district: getDistrictForAPI() || '',
-      address: formData.address.trim() || '',
-      phone_number: formData.phone_number.trim() || '',
-      products: products,
-      product_total: parseFloat(productTotal.toFixed(2)),
-      delivery_charge: deliveryCharge,
-      total_price: parseFloat(totalPrice.toFixed(2)),
-    };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -262,7 +222,6 @@ function OrderPageContent() {
         router.push('/');
       }, 3000);
     } catch (err: any) {
-      console.error('Error creating order:', err);
       setError(
         err.response?.data?.error || 
         err.response?.data?.message || 
@@ -497,13 +456,6 @@ function OrderPageContent() {
                 </div>
               )}
 
-              {/* Delivery Charge Information */}
-              <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-                <p className="text-sm font-semibold text-blue-800 mb-1">ডেলিভারি চার্জ:</p>
-                <p className="text-xs text-blue-700">ঢাকা সিটির ভেতরে ৳৮০</p>
-                <p className="text-xs text-blue-700">ঢাকা সিটির বাহিরে ৳১৫০</p>
-              </div>
-
               {/* Price Summary - Always visible and updates immediately */}
               <div className="border-t border-gray-200 pt-3 mt-3">
                 <div className="space-y-1 text-sm">
@@ -567,6 +519,26 @@ function OrderPageContent() {
                 </div>
 
                 <div>
+                  <label htmlFor="address" className="block text-sm font-medium text-black mb-2">
+                    ঠিকানা <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    id="address"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    required
+                    rows={3}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black resize-none"
+                    placeholder={
+                      formData.district === 'inside_dhaka'
+                        ? 'উদাহরণ: ১২৩/৪, রোড নং ৫, ধানমন্ডি, ঢাকা-১২০৫'
+                        : 'উদাহরণ: ৪৫৬, স্টেশন রোড, চট্টগ্রাম-৪০০০'
+                    }
+                  />
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-black mb-2">
                     ডেলিভারি এলাকা <span className="text-red-500">*</span>
                   </label>
@@ -603,42 +575,6 @@ function OrderPageContent() {
                   </div>
                 </div>
 
-                <div>
-                  <label htmlFor="address" className="block text-sm font-medium text-black mb-2">
-                    ঠিকানা <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    id="address"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    required
-                    rows={3}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black resize-none"
-                    placeholder="আপনার বাসার সম্পূর্ণ ঠিকানা"
-                  />
-                </div>
-
-                {/* JSON Preview Toggle */}
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowJsonPreview(!showJsonPreview)}
-                    className="text-sm text-gray-600 hover:text-black underline"
-                  >
-                    {showJsonPreview ? 'Hide' : 'Show'} JSON Payload Preview
-                  </button>
-                  
-                  {showJsonPreview && (
-                    <div className="mt-3 p-4 bg-gray-50 border-2 border-gray-200 rounded">
-                      <p className="text-xs font-semibold text-gray-700 mb-2">JSON that will be sent to API:</p>
-                      <pre className="text-xs bg-white p-3 rounded border border-gray-300 overflow-x-auto">
-                        {JSON.stringify(getJsonPayload(), null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-
                 <button
                   type="submit"
                   disabled={submitting || orderItems.length === 0 || orderItems.some(item => item.product.stock === 0)}
@@ -670,6 +606,4 @@ export default function OrderPage() {
     </Suspense>
   );
 }
-
-
 
