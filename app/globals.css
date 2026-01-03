@@ -44,7 +44,6 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --font-sans: var(--font-funnel-sans), "Funnel Sans", sans-serif;
-  --font-logo: var(--font-bricolage-grotesque), "Bricolage Grotesque", sans-serif;
 }
 
 * {
@@ -61,11 +60,6 @@ body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family: var(--font-funnel-sans), "Funnel Sans", sans-serif;
-}
-
-/* Logo font - Bricolage Grotesque */
-.logo-font {
-  font-family: var(--font-bricolage-grotesque), "Bricolage Grotesque", sans-serif !important;
 }
 
 /* Gen Z Zone Design Enhancements */

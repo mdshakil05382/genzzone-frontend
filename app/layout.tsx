@@ -1,17 +1,10 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Funnel_Sans } from "next/font/google";
+import { Funnel_Sans } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { CartProvider } from "@/contexts/CartContext";
 import { CsrfInitializer } from "@/components/CsrfInitializer";
-
-const bricolageGrotesque = Bricolage_Grotesque({
-  variable: "--font-bricolage-grotesque",
-  subsets: ["latin"],
-  weight: ["200", "300", "400", "500", "600", "700", "800"],
-  display: "swap",
-});
 
 const funnelSans = Funnel_Sans({
   variable: "--font-funnel-sans",
@@ -34,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${bricolageGrotesque.variable} ${funnelSans.variable} antialiased`}
+        className={`${funnelSans.variable} antialiased`}
       >
         <CsrfInitializer />
         <CartProvider>
