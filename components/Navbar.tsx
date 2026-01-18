@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Search, ShoppingBag, Menu, X, Camera, Heart, User } from 'lucide-react';
-import { notificationApi, Notification } from '@/lib/api';
+import { Search, ShoppingBag, Menu, X, Camera, Heart, User, ChevronRight, ChevronDown } from 'lucide-react';
+import { notificationApi, categoryApi, Notification, Category } from '@/lib/api';
 
 const placeholders = [
   'SEARCH BY NAME',
@@ -20,6 +21,8 @@ export function Navbar() {
   const [orderId, setOrderId] = useState('');
   const [notification, setNotification] = useState<Notification | null>(null);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>({});
+  const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     async function fetchNotification() {
@@ -27,6 +30,18 @@ export function Navbar() {
       setNotification(activeNotification);
     }
     fetchNotification();
+  }, []);
+
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        const data = await categoryApi.getTree();
+        setCategories(data);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    }
+    fetchCategories();
   }, []);
 
   useEffect(() => {
@@ -48,6 +63,15 @@ export function Navbar() {
 
   const toggleCategories = () => {
     setIsCategoriesOpen(!isCategoriesOpen);
+  };
+
+  const toggleCategoryExpansion = (category: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpandedCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
   };
 
   const openTrackingModal = () => {
@@ -136,12 +160,16 @@ export function Navbar() {
               onClick={closeMobileMenu}
             >
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-red-600 rounded flex items-center justify-center">
-                  <ShoppingBag className="w-6 h-6 text-white" />
-                </div>
+                <Image
+                  src="/media/genzzone.jpg"
+                  alt="GenZZone Logo"
+                  width={120}
+                  height={120}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
                 <div className="flex flex-col">
-                  <span className="text-xl font-bold text-red-600 leading-tight">GEN Z</span>
-                  <span className="text-xl font-bold text-black leading-tight">ZONE</span>
+                  <span className="text-xl font-extrabold text-red-600 leading-tight" style={{ fontFamily: 'var(--font-funnel-sans)' }}>GEN-Z</span>
+                  <span className="text-xl font-extrabold text-black leading-tight" style={{ fontFamily: 'var(--font-funnel-sans)' }}>ZONE</span>
                 </div>
               </div>
             </Link>
@@ -214,24 +242,52 @@ export function Navbar() {
               {/* Dropdown Menu */}
               <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                 <div className="py-2">
-                  <Link
-                    href="/products?category=combo"
-                    className="block px-4 py-2 text-sm text-black hover:bg-gray-100"
-                  >
-                    Combo
-                  </Link>
-                  <Link
-                    href="/products?category=men"
-                    className="block px-4 py-2 text-sm text-black hover:bg-gray-100"
-                  >
-                    Men
-                  </Link>
-                  <Link
-                    href="/products?category=womens"
-                    className="block px-4 py-2 text-sm text-black hover:bg-gray-100"
-                  >
-                    Women
-                  </Link>
+                  {categories.map((category) => (
+                    <div key={category.id}>
+                      {category.children.length > 0 ? (
+                        <>
+                          <div className="flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-100 group/item">
+                            <Link
+                              href={`/products?category=${category.slug}`}
+                              className="flex-1 text-black"
+                            >
+                              {category.name}
+                            </Link>
+                            <button
+                              onClick={(e) => toggleCategoryExpansion(category.slug, e)}
+                              className="p-1 hover:bg-gray-200 rounded"
+                            >
+                              {expandedCategories[category.slug] ? (
+                                <ChevronDown className="w-4 h-4" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                          {expandedCategories[category.slug] && (
+                            <div className="pl-2">
+                              {category.children.map((child) => (
+                                <Link
+                                  key={child.id}
+                                  href={`/products?category=${child.slug}`}
+                                  className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 pl-6"
+                                >
+                                  {child.name}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <Link
+                          href={`/products?category=${category.slug}`}
+                          className="block px-4 py-2 text-sm text-black hover:bg-gray-100"
+                        >
+                          {category.name}
+                        </Link>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -265,9 +321,9 @@ export function Navbar() {
               onClick={closeMobileMenu}
             >
               <div className="flex flex-col">
-                <span className="text-lg font-bold text-red-600 leading-tight">GEN-Z</span>
-                <span className="text-lg font-bold text-red-600 leading-tight">G</span>
-                <span className="text-lg font-bold text-black leading-tight">ZONE</span>
+                <span className="text-lg font-extrabold text-red-600 leading-tight" style={{ fontFamily: 'var(--font-funnel-sans)' }}>GEN-Z</span>
+                <span className="text-lg font-extrabold text-red-600 leading-tight" style={{ fontFamily: 'var(--font-funnel-sans)' }}>G</span>
+                <span className="text-lg font-extrabold text-black leading-tight" style={{ fontFamily: 'var(--font-funnel-sans)' }}>ZONE</span>
               </div>
             </Link>
             <button
@@ -300,27 +356,55 @@ export function Navbar() {
               {/* Mobile Categories Dropdown */}
               {isCategoriesOpen && (
                 <div className="pl-4 mt-2 space-y-2">
-                  <Link
-                    href="/products?category=men"
-                    className="block text-sm text-gray-700 hover:text-black py-2"
-                    onClick={closeMobileMenu}
-                  >
-                    Men
-                  </Link>
-                  <Link
-                    href="/products?category=womens"
-                    className="block text-sm text-gray-700 hover:text-black py-2"
-                    onClick={closeMobileMenu}
-                  >
-                    Women
-                  </Link>
-                  <Link
-                    href="/products?category=combo"
-                    className="block text-sm text-gray-700 hover:text-black py-2"
-                    onClick={closeMobileMenu}
-                  >
-                    Combo
-                  </Link>
+                  {categories.map((category) => (
+                    <div key={category.id}>
+                      {category.children.length > 0 ? (
+                        <>
+                          <div className="flex items-center justify-between text-sm py-2">
+                            <Link
+                              href={`/products?category=${category.slug}`}
+                              className="flex-1 text-gray-700 hover:text-black"
+                              onClick={closeMobileMenu}
+                            >
+                              {category.name}
+                            </Link>
+                            <button
+                              onClick={(e) => toggleCategoryExpansion(category.slug, e)}
+                              className="p-1"
+                            >
+                              {expandedCategories[category.slug] ? (
+                                <ChevronDown className="w-4 h-4" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                          {expandedCategories[category.slug] && (
+                            <div className="pl-4 space-y-2">
+                              {category.children.map((child) => (
+                                <Link
+                                  key={child.id}
+                                  href={`/products?category=${child.slug}`}
+                                  className="block text-sm text-gray-600 hover:text-black py-2"
+                                  onClick={closeMobileMenu}
+                                >
+                                  {child.name}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <Link
+                          href={`/products?category=${category.slug}`}
+                          className="block text-sm text-gray-700 hover:text-black py-2"
+                          onClick={closeMobileMenu}
+                        >
+                          {category.name}
+                        </Link>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

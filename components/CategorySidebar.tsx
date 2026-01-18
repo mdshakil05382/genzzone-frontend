@@ -1,71 +1,117 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
-  Briefcase, 
-  Gift, 
-  Smartphone, 
-  Heart, 
-  Gamepad2, 
-  Watch, 
-  Car, 
   ShoppingBag, 
-  Backpack, 
-  Laptop, 
-  CookingPot, 
-  Wrench, 
-  BookOpen,
-  Shirt,
-  Baby,
-  Eye,
-  Sparkles
+  ChevronRight,
+  ChevronDown,
+  Tag
 } from 'lucide-react';
-
-interface Category {
-  name: string;
-  icon: React.ReactNode;
-  href: string;
-}
-
-const categories: Category[] = [
-  { name: 'Shoes', icon: <Shirt className="w-5 h-5" />, href: '/products?category=shoes' },
-  { name: 'Bag', icon: <ShoppingBag className="w-5 h-5" />, href: '/products?category=bag' },
-  { name: 'Jewelry', icon: <Sparkles className="w-5 h-5" />, href: '/products?category=jewelry' },
-  { name: 'Beauty And Personal Care', icon: <Sparkles className="w-5 h-5" />, href: '/products?category=beauty' },
-  { name: "Men's Clothing", icon: <Shirt className="w-5 h-5" />, href: '/products?category=men' },
-  { name: "Women's Clothing", icon: <Shirt className="w-5 h-5" />, href: '/products?category=womens' },
-  { name: 'Baby Items', icon: <Baby className="w-5 h-5" />, href: '/products?category=baby' },
-  { name: 'Eyewear', icon: <Eye className="w-5 h-5" />, href: '/products?category=eyewear' },
-  { name: 'Office Supplies', icon: <Briefcase className="w-5 h-5" />, href: '/products?category=office' },
-  { name: 'Seasonal Products', icon: <Gift className="w-5 h-5" />, href: '/products?category=seasonal' },
-  { name: 'Phone Accessories', icon: <Smartphone className="w-5 h-5" />, href: '/products?category=phone' },
-  { name: 'Sports And Fitness', icon: <Heart className="w-5 h-5" />, href: '/products?category=sports' },
-  { name: 'Entertainment Items', icon: <Gamepad2 className="w-5 h-5" />, href: '/products?category=entertainment' },
-  { name: 'Watches', icon: <Watch className="w-5 h-5" />, href: '/products?category=watches' },
-  { name: 'Automobile Items', icon: <Car className="w-5 h-5" />, href: '/products?category=automobile' },
-  { name: 'Groceries And Pets', icon: <ShoppingBag className="w-5 h-5" />, href: '/products?category=groceries' },
-  { name: 'Outdoor And Travelling', icon: <Backpack className="w-5 h-5" />, href: '/products?category=outdoor' },
-  { name: 'Electronics And Gadgets', icon: <Laptop className="w-5 h-5" />, href: '/products?category=electronics' },
-  { name: 'Kitchen Gadgets', icon: <CookingPot className="w-5 h-5" />, href: '/products?category=kitchen' },
-  { name: 'Tools And Home Improvement', icon: <Wrench className="w-5 h-5" />, href: '/products?category=tools' },
-  { name: 'School Supplies', icon: <BookOpen className="w-5 h-5" />, href: '/products?category=school' },
-];
+import { categoryApi, Category } from '@/lib/api';
 
 export function CategorySidebar() {
+  const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>({});
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        const data = await categoryApi.getTree();
+        setCategories(data);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchCategories();
+  }, []);
+
+  const toggleCategoryExpansion = (category: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpandedCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
+
+  if (isLoading) {
+    return (
+      <aside className="hidden lg:block w-64 bg-white border-r border-gray-200 sticky top-0 self-start h-screen overflow-y-auto scrollbar-hide" style={{ paddingTop: '80px' }}>
+        <div className="p-4">
+          <h2 className="text-lg font-bold text-red-600 mb-4 uppercase">Category</h2>
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
+            ))}
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside className="hidden lg:block w-64 bg-white border-r border-gray-200 sticky top-0 self-start h-screen overflow-y-auto scrollbar-hide" style={{ paddingTop: '80px' }}>
       <div className="p-4">
         <h2 className="text-lg font-bold text-red-600 mb-4 uppercase">Category</h2>
         <nav className="space-y-1">
           {categories.map((category) => (
-            <Link
-              key={category.name}
-              href={category.href}
-              className="flex items-center gap-3 px-3 py-2 text-sm text-black hover:bg-gray-100 rounded transition-colors"
-            >
-              <span className="text-gray-600 flex-shrink-0">{category.icon}</span>
-              <span className="truncate">{category.name}</span>
-            </Link>
+            <div key={category.id}>
+              {category.children.length > 0 ? (
+                <>
+                  <div className="flex items-center justify-between gap-3 px-3 py-2 text-sm hover:bg-gray-100 rounded transition-colors">
+                    <Link
+                      href={`/products?category=${category.slug}`}
+                      className="flex items-center gap-3 flex-1"
+                    >
+                      <span className="text-gray-600 flex-shrink-0">
+                        <Tag className="w-5 h-5" />
+                      </span>
+                      <span className="truncate text-black">{category.name}</span>
+                    </Link>
+                    <button
+                      onClick={(e) => toggleCategoryExpansion(category.slug, e)}
+                      className="p-1 hover:bg-gray-200 rounded flex-shrink-0"
+                    >
+                      {expandedCategories[category.slug] ? (
+                        <ChevronDown className="w-4 h-4 text-gray-600" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-gray-600" />
+                      )}
+                    </button>
+                  </div>
+                  {expandedCategories[category.slug] && (
+                    <div className="pl-2 space-y-1">
+                      {category.children.map((child) => (
+                        <Link
+                          key={child.id}
+                          href={`/products?category=${child.slug}`}
+                          className="flex items-center gap-3 px-3 py-2 pl-8 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                        >
+                          <span className="text-gray-600 flex-shrink-0">
+                            <Tag className="w-5 h-5" />
+                          </span>
+                          <span className="truncate">{child.name}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <Link
+                  href={`/products?category=${category.slug}`}
+                  className="flex items-center gap-3 px-3 py-2 text-sm text-black hover:bg-gray-100 rounded transition-colors"
+                >
+                  <span className="text-gray-600 flex-shrink-0">
+                    <Tag className="w-5 h-5" />
+                  </span>
+                  <span className="truncate">{category.name}</span>
+                </Link>
+              )}
+            </div>
           ))}
         </nav>
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { Mail, Phone, MapPin, ShoppingBag } from 'lucide-react';
+import { Mail, Phone, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -16,12 +16,16 @@ export function Footer() {
           {/* Logo & Contact Info */}
           <div>
             <div className="flex items-center gap-2 mb-6">
-              <div className="w-12 h-12 bg-red-600 rounded flex items-center justify-center">
-                <ShoppingBag className="w-7 h-7 text-white" />
-              </div>
+              <Image
+                src="/media/genzzone.jpg"
+                alt="GenZZone Logo"
+                width={144}
+                height={144}
+                className="w-12 h-12 rounded-full object-cover"
+              />
               <div className="flex flex-col">
-                <span className="text-xl font-bold text-red-600 leading-tight">GEN-Z</span>
-                <span className="text-xl font-bold text-black leading-tight">ZONE</span>
+                <span className="text-xl font-extrabold text-red-600 leading-tight" style={{ fontFamily: 'var(--font-funnel-sans)' }}>GEN-Z</span>
+                <span className="text-xl font-extrabold text-black leading-tight" style={{ fontFamily: 'var(--font-funnel-sans)' }}>ZONE</span>
               </div>
             </div>
             <div className="space-y-3 text-sm text-black">

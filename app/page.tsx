@@ -9,16 +9,19 @@ import { ProductCard } from '@/components/ProductCard';
 export default function Home() {
   const [bestSelling, setBestSelling] = useState<BestSelling[]>([]);
   const [comboProducts, setComboProducts] = useState<Product[]>([]);
+  const [coupleProducts, setCoupleProducts] = useState<Product[]>([]);
   const [mensProducts, setMensProducts] = useState<Product[]>([]);
   const [womensProducts, setWomensProducts] = useState<Product[]>([]);
   
   const [bestSellingLoading, setBestSellingLoading] = useState(true);
   const [comboLoading, setComboLoading] = useState(true);
+  const [coupleLoading, setCoupleLoading] = useState(true);
   const [mensLoading, setMensLoading] = useState(true);
   const [womensLoading, setWomensLoading] = useState(true);
   
   const [bestSellingError, setBestSellingError] = useState<string | null>(null);
   const [comboError, setComboError] = useState<string | null>(null);
+  const [coupleError, setCoupleError] = useState<string | null>(null);
   const [mensError, setMensError] = useState<string | null>(null);
   const [womensError, setWomensError] = useState<string | null>(null);
 
@@ -52,6 +55,22 @@ export default function Home() {
       }
     }
     fetchComboProducts();
+  }, []);
+
+  useEffect(() => {
+    async function fetchCoupleProducts() {
+      try {
+        setCoupleLoading(true);
+        const data = await productApi.getAll(undefined, 'couple');
+        setCoupleProducts(data);
+      } catch (err) {
+        setCoupleError('Failed to load couple products');
+        console.error(err);
+      } finally {
+        setCoupleLoading(false);
+      }
+    }
+    fetchCoupleProducts();
   }, []);
 
   useEffect(() => {
@@ -92,11 +111,13 @@ export default function Home() {
   // Limit products for display (max 8 per section)
   const displayedBestSelling = bestSellingProducts.slice(0, 8);
   const displayedCombo = comboProducts.slice(0, 8);
+  const displayedCouple = coupleProducts.slice(0, 8);
   const displayedMens = mensProducts.slice(0, 8);
   const displayedWomens = womensProducts.slice(0, 8);
   
   const hasMoreBestSelling = bestSellingProducts.length > 8;
   const hasMoreCombo = comboProducts.length > 8;
+  const hasMoreCouple = coupleProducts.length > 8;
   const hasMoreMens = mensProducts.length > 8;
   const hasMoreWomens = womensProducts.length > 8;
 
@@ -173,6 +194,45 @@ export default function Home() {
               <div className="text-center mt-6 md:mt-8">
                 <Link
                   href="/products?category=combo"
+                  className="inline-block px-6 md:px-8 py-2 md:py-3 border-2 border-black text-black hover:bg-black hover:text-white transition-colors rounded font-medium text-sm md:text-base"
+                >
+                  View More
+                </Link>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      {/* Couple Section */}
+      <section className="container mx-auto px-4 py-16">
+        <div className="mb-12 text-center">
+          <h2 className="text-2xl md:text-3xl font-bold mb-2 text-black" style={{ fontFamily: 'var(--font-space-grotesk), "Space Grotesk", sans-serif' }}>Couple</h2>
+          <p className="text-sm text-gray-600">Perfect matching outfits for couples</p>
+        </div>
+        {coupleLoading ? (
+          <div className="text-center py-16">
+            <div className="text-lg text-gray-600">Loading couple products...</div>
+          </div>
+        ) : coupleError ? (
+          <div className="text-center py-16">
+            <div className="text-lg text-red-600">{coupleError}</div>
+          </div>
+        ) : coupleProducts.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="text-lg text-gray-600">No couple products available</div>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-6">
+              {displayedCouple.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+            {hasMoreCouple && (
+              <div className="text-center mt-6 md:mt-8">
+                <Link
+                  href="/products?category=couple"
                   className="inline-block px-6 md:px-8 py-2 md:py-3 border-2 border-black text-black hover:bg-black hover:text-white transition-colors rounded font-medium text-sm md:text-base"
                 >
                   View More

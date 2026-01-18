@@ -27,6 +27,11 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: "GEN-Z ZONE",
   description: "Your premium shopping destination",
+  icons: {
+    icon: "/media/genzzone.jpg",
+    shortcut: "/media/genzzone.jpg",
+    apple: "/media/genzzone.jpg",
+  },
 };
 
 export default function RootLayout({

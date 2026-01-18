@@ -2,13 +2,16 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Phone, ArrowUp, ShoppingBag, Heart, Grid2X2, User, MessageCircle, X, Home } from 'lucide-react';
+import { Phone, ArrowUp, ShoppingBag, Heart, Grid2X2, User, MessageCircle, X, Home, ChevronRight, ChevronDown } from 'lucide-react';
+import { categoryApi, Category } from '@/lib/api';
 
 export function MobileNavigation() {
   const [isVisible, setIsVisible] = useState(false);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [popupPosition, setPopupPosition] = useState({ left: 0, arrowLeft: 32 });
   const categoryButtonRef = useRef<HTMLButtonElement>(null);
+  const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>({});
+  const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     const toggleVisibility = () => {
@@ -21,6 +24,18 @@ export function MobileNavigation() {
 
     window.addEventListener('scroll', toggleVisibility);
     return () => window.removeEventListener('scroll', toggleVisibility);
+  }, []);
+
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        const data = await categoryApi.getTree();
+        setCategories(data);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    }
+    fetchCategories();
   }, []);
 
   const scrollToTop = () => {
@@ -45,11 +60,14 @@ export function MobileNavigation() {
     setIsCategoryMenuOpen(false);
   };
 
-  const categories = [
-    { name: 'Men', href: '/products?category=men' },
-    { name: 'Women', href: '/products?category=womens' },
-    { name: 'Combo', href: '/products?category=combo' },
-  ];
+  const toggleCategoryExpansion = (category: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpandedCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
 
   return (
     <>
@@ -95,15 +113,53 @@ export function MobileNavigation() {
             >
               <div className="p-2 space-y-1">
                 {categories.map((category) => (
-                  <Link
-                    key={category.name}
-                    href={category.href}
-                    onClick={closeCategoryMenu}
-                    className="flex items-center justify-between px-3 py-2 text-white hover:bg-gray-800 rounded transition-colors"
-                  >
-                    <span className="text-sm font-medium">{category.name}</span>
-                    <span className="text-gray-400 text-sm">›</span>
-                  </Link>
+                  <div key={category.id}>
+                    {category.children.length > 0 ? (
+                      <>
+                        <div className="flex items-center justify-between px-3 py-2 text-white hover:bg-gray-800 rounded transition-colors">
+                          <Link
+                            href={`/products?category=${category.slug}`}
+                            onClick={closeCategoryMenu}
+                            className="flex-1 text-sm font-medium"
+                          >
+                            {category.name}
+                          </Link>
+                          <button
+                            onClick={(e) => toggleCategoryExpansion(category.slug, e)}
+                            className="p-1 hover:bg-gray-700 rounded"
+                          >
+                            {expandedCategories[category.slug] ? (
+                              <ChevronDown className="w-4 h-4 text-gray-400" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-gray-400" />
+                            )}
+                          </button>
+                        </div>
+                        {expandedCategories[category.slug] && (
+                          <div className="pl-2 space-y-1">
+                            {category.children.map((child) => (
+                              <Link
+                                key={child.id}
+                                href={`/products?category=${child.slug}`}
+                                onClick={closeCategoryMenu}
+                                className="block px-3 py-2 pl-6 text-white hover:bg-gray-800 rounded transition-colors opacity-90"
+                              >
+                                <span className="text-sm font-normal">{child.name}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <Link
+                        href={`/products?category=${category.slug}`}
+                        onClick={closeCategoryMenu}
+                        className="block px-3 py-2 text-white hover:bg-gray-800 rounded transition-colors"
+                      >
+                        <span className="text-sm font-medium">{category.name}</span>
+                      </Link>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>

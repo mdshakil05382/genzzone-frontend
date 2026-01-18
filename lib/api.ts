@@ -31,11 +31,31 @@ api.interceptors.request.use((config) => {
 });
 
 // Types
+export interface CategoryChild {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  slug: string;
+  children: CategoryChild[];
+}
+
+export interface ProductCategory {
+  slug: string;
+  name: string;
+  parent_name: string | null;
+}
+
 export interface Product {
   id: number;
   name: string;
   description: string;
-  category: 'men' | 'men_shirt' | 'men_panjabi' | 'womens' | 'combo';
+  category: ProductCategory;
+  category_slug: string; // backward-compatible field
   regular_price: string;
   offer_price: string | null;
   current_price: string;
@@ -91,6 +111,14 @@ export const productApi = {
 
   getById: async (id: number): Promise<Product> => {
     const response = await api.get(`/api/products/${id}/`);
+    return response.data;
+  },
+};
+
+// API Functions - Categories
+export const categoryApi = {
+  getTree: async (): Promise<Category[]> => {
+    const response = await api.get('/api/categories/tree/');
     return response.data;
   },
 };

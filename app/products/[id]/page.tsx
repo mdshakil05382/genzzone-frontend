@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Product, productApi, getImageUrl } from '@/lib/api';
 import { ArrowLeft } from 'lucide-react';
 import Image from 'next/image';
+import { ProductCard } from '@/components/ProductCard';
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -12,6 +13,8 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   useEffect(() => {
     async function fetchProduct() {
@@ -30,6 +33,28 @@ export default function ProductDetailPage() {
       fetchProduct();
     }
   }, [productId]);
+
+  useEffect(() => {
+    async function fetchAvailableProducts() {
+      if (!product) return;
+      
+      try {
+        setLoadingProducts(true);
+        // Fetch products from the same category
+        const categoryProducts = await productApi.getAll(undefined, product.category_slug || product.category?.slug);
+        // Filter out the current product
+        const filteredProducts = categoryProducts.filter(p => p.id !== productId);
+        setAvailableProducts(filteredProducts);
+      } catch (err) {
+        console.error('Failed to load available products:', err);
+      } finally {
+        setLoadingProducts(false);
+      }
+    }
+    if (product) {
+      fetchAvailableProducts();
+    }
+  }, [product, productId]);
 
   if (loading) {
     return (
@@ -124,7 +149,11 @@ export default function ProductDetailPage() {
             <div className="space-y-4">
               <div>
                 <h3 className="font-semibold text-black mb-2">Category</h3>
-                <p className="text-gray-700 capitalize">{product.category}</p>
+                <p className="text-gray-700 capitalize">
+                  {product.category?.parent_name 
+                    ? `${product.category.parent_name} - ${product.category.name}` 
+                    : product.category?.name || product.category_slug}
+                </p>
               </div>
 
               <div>
@@ -165,6 +194,39 @@ export default function ProductDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Available Products Section */}
+        {availableProducts.length > 0 && (
+          <div className="mt-16 md:mt-24">
+            <h2 className="text-2xl md:text-3xl font-bold text-black text-center mb-8 md:mb-12" style={{ fontFamily: 'var(--font-space-grotesk), "Space Grotesk", sans-serif' }}>
+              You Might Also Like
+            </h2>
+            {/* Mobile: Horizontal Scroll */}
+            <div className="overflow-x-auto pb-4 -mx-4 px-4 lg:hidden">
+              <div className="flex gap-4 md:gap-6 min-w-max">
+                {availableProducts.map((availableProduct) => (
+                  <div key={availableProduct.id} className="w-[180px] md:w-[240px] flex-shrink-0">
+                    <ProductCard product={availableProduct} />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Desktop: Grid with max 4 columns */}
+            <div className="hidden lg:grid lg:grid-cols-4 gap-4 md:gap-6">
+              {availableProducts.map((availableProduct) => (
+                <div key={availableProduct.id}>
+                  <ProductCard product={availableProduct} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {loadingProducts && availableProducts.length === 0 && (
+          <div className="mt-16 md:mt-24 text-center text-gray-600">
+            Loading available products...
+          </div>
+        )}
       </div>
     </div>
   );

@@ -2,9 +2,10 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Product, productApi, getImageUrl, orderApi, CreateMultiProductOrderData } from '@/lib/api';
-import { ArrowLeft, Plus, X, Minus } from 'lucide-react';
+import { Product, productApi, getImageUrl, orderApi, CreateMultiProductOrderData, Order } from '@/lib/api';
+import { ArrowLeft, Plus, X, Minus, CheckCircle, Download, ShoppingBag } from 'lucide-react';
 import Image from 'next/image';
+import { generateOrderPDF, OrderPDFData } from '@/lib/generateOrderPDF';
 
 interface OrderItem {
   product: Product;
@@ -25,6 +26,14 @@ function OrderPageContent() {
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [completedOrder, setCompletedOrder] = useState<{
+    order: Order;
+    items: OrderItem[];
+    productTotal: number;
+    deliveryCharge: number;
+    totalPrice: number;
+    district: string;
+  } | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -173,6 +182,10 @@ function OrderPageContent() {
 
     // Validate all items
     for (const item of orderItems) {
+      if (!item.product_size) {
+        setError(`${item.product.name} এর জন্য সাইজ নির্বাচন করুন`);
+        return;
+      }
       if (item.quantity < 1) {
         setError(`${item.product.name} এর পরিমাণ কমপক্ষে 1 হতে হবে`);
         return;
@@ -214,13 +227,19 @@ function OrderPageContent() {
         total_price: parseFloat(getTotalPrice().toFixed(2)),
       };
 
-      await orderApi.createMultiProduct(orderData);
-      setSuccess(true);
+      const order = await orderApi.createMultiProduct(orderData);
       
-      // Redirect after 3 seconds
-      setTimeout(() => {
-        router.push('/');
-      }, 3000);
+      // Store completed order data for success screen
+      setCompletedOrder({
+        order,
+        items: [...orderItems],
+        productTotal: getProductTotal(),
+        deliveryCharge: getDeliveryCharge(),
+        totalPrice: getTotalPrice(),
+        district: getDistrictForAPI(),
+      });
+      
+      setSuccess(true);
     } catch (err: any) {
       setError(
         err.response?.data?.error || 
@@ -254,14 +273,186 @@ function OrderPageContent() {
     );
   }
 
-  if (success) {
+  const handleDownloadPDF = () => {
+    if (!completedOrder) return;
+
+    const pdfData: OrderPDFData = {
+      orderId: completedOrder.order.id,
+      orderDate: completedOrder.order.created_at,
+      customerName: formData.customer_name,
+      phoneNumber: formData.phone_number,
+      address: formData.address,
+      district: completedOrder.district,
+      paymentMethod: 'Cash on Delivery (COD)',
+      items: completedOrder.items.map((item) => ({
+        name: item.product.name,
+        size: item.product_size,
+        quantity: item.quantity,
+        unitPrice: parseFloat(item.product.current_price),
+        total: parseFloat(item.product.current_price) * item.quantity,
+      })),
+      productTotal: completedOrder.productTotal,
+      deliveryCharge: completedOrder.deliveryCharge,
+      totalAmount: completedOrder.totalPrice,
+    };
+
+    generateOrderPDF(pdfData);
+  };
+
+  if (success && completedOrder) {
     return (
-      <div className="container mx-auto px-4 py-16">
-        <div className="max-w-2xl mx-auto text-center">
-          <div className="bg-green-50 border-2 border-green-500 rounded-lg p-8 mb-6">
-            <h2 className="text-2xl font-bold text-green-800 mb-4">অর্ডার সফলভাবে দেওয়া হয়েছে!</h2>
-            <p className="text-gray-700 mb-2">আপনার অর্ডারের জন্য ধন্যবাদ, {formData.customer_name}!</p>
-            <p className="text-gray-600 text-sm">আপনাকে শীঘ্রই হোম পেজে নিয়ে যাওয়া হবে...</p>
+      <div className="bg-gray-50 min-h-screen">
+        <div className="container mx-auto px-4 py-8 md:py-16">
+          <div className="max-w-2xl mx-auto">
+            {/* Success Header */}
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-4">
+                <CheckCircle className="w-12 h-12 text-green-600" />
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">অর্ডার সফল হয়েছে!</h1>
+              <p className="text-gray-600">আপনার অর্ডারের জন্য ধন্যবাদ, {formData.customer_name}!</p>
+            </div>
+
+            {/* Order Details Card */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+              {/* Order ID and Date */}
+              <div className="bg-gradient-to-r from-green-600 to-green-500 px-6 py-4 text-white">
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <div>
+                    <p className="text-green-100 text-sm">অর্ডার আইডি</p>
+                    <p className="font-bold text-lg">#{completedOrder.order.id}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-green-100 text-sm">তারিখ</p>
+                    <p className="font-medium">{new Date(completedOrder.order.created_at).toLocaleDateString('bn-BD', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6">
+                {/* Customer Information */}
+                <div className="mb-6">
+                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                    গ্রাহকের তথ্য
+                  </h3>
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">নাম:</span>
+                      <span className="font-medium text-gray-900">{formData.customer_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">মোবাইল:</span>
+                      <span className="font-medium text-gray-900">{formData.phone_number}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">এলাকা:</span>
+                      <span className="font-medium text-gray-900">{completedOrder.district}</span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span className="text-gray-600">ঠিকানা:</span>
+                      <span className="font-medium text-gray-900 text-right max-w-[200px]">{formData.address}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">পেমেন্ট:</span>
+                      <span className="font-medium text-gray-900">ক্যাশ অন ডেলিভারি (COD)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order Items */}
+                <div className="mb-6">
+                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                    অর্ডার করা পণ্য
+                  </h3>
+                  <div className="space-y-3">
+                    {completedOrder.items.map((item, index) => (
+                      <div key={index} className="flex items-center gap-4 bg-gray-50 rounded-lg p-3">
+                        {getImageUrl(item.product.image) ? (
+                          <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden">
+                            <Image
+                              src={getImageUrl(item.product.image)!}
+                              alt={item.product.name}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span className="text-gray-400 text-xs">No Image</span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{item.product.name}</p>
+                          <p className="text-sm text-gray-600">
+                            সাইজ: {item.product_size} | পরিমাণ: {item.quantity}
+                          </p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="font-semibold text-gray-900">
+                            ৳{(parseFloat(item.product.current_price) * item.quantity).toFixed(0)}
+                          </p>
+                          {item.quantity > 1 && (
+                            <p className="text-xs text-gray-500">
+                              ৳{parseFloat(item.product.current_price).toFixed(0)} × {item.quantity}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Price Summary */}
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-gray-600">
+                      <span>পণ্যের মোট:</span>
+                      <span>৳{completedOrder.productTotal.toFixed(0)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>ডেলিভারি চার্জ:</span>
+                      <span>৳{completedOrder.deliveryCharge}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-lg text-gray-900 pt-2 border-t border-gray-200">
+                      <span>সর্বমোট:</span>
+                      <span className="text-green-600">৳{completedOrder.totalPrice.toFixed(0)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={handleDownloadPDF}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-gray-900 text-gray-900 font-medium rounded-lg hover:bg-gray-900 hover:text-white transition-colors"
+              >
+                <Download className="w-5 h-5" />
+                রিসিট ডাউনলোড করুন
+              </button>
+              <button
+                onClick={() => router.push('/products')}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <ShoppingBag className="w-5 h-5" />
+                আরও কেনাকাটা করুন
+              </button>
+            </div>
+
+            {/* Additional Info */}
+            <div className="mt-6 text-center">
+              <p className="text-gray-500 text-sm">
+                আপনার অর্ডার কনফার্ম করতে আমরা শীঘ্রই আপনার সাথে যোগাযোগ করব।
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -324,7 +515,11 @@ function OrderPageContent() {
                               >
                                 {item.product.name}
                               </a>
-                              <p className="text-sm text-gray-600 capitalize mb-1">{item.product.category}</p>
+                              <p className="text-sm text-gray-600 capitalize mb-1">
+                              {item.product.category?.parent_name 
+                                ? `${item.product.category.parent_name} - ${item.product.category.name}` 
+                                : item.product.category?.name || item.product.category_slug}
+                            </p>
                               <div className="text-base font-normal text-black">
                                 ৳{parseFloat(item.product.current_price).toFixed(0)}.00
                               </div>
@@ -379,7 +574,7 @@ function OrderPageContent() {
                       {/* Size Selector */}
                       <div className="mb-2">
                         <label className="block text-sm font-medium text-black mb-2">
-                          পণ্যের সাইজ
+                          পণ্যের সাইজ <span className="text-red-500">*</span>
                         </label>
                         <div className="flex gap-2 flex-wrap">
                           {sizeOptions.map((option) => (
@@ -439,16 +634,31 @@ function OrderPageContent() {
                   ) : availableProducts.length === 0 ? (
                     <div className="text-center py-4 text-sm text-gray-600">কোন পণ্য পাওয়া যায়নি</div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
                       {availableProducts.map((product) => (
                         <button
                           key={product.id}
                           type="button"
                           onClick={() => handleAddProduct(product)}
-                          className="w-full text-left p-2 border border-gray-200 rounded hover:border-black hover:bg-gray-50 transition-colors"
+                          className="text-left p-2 border border-gray-200 rounded hover:border-black hover:bg-gray-50 transition-colors"
                         >
-                          <div className="font-medium text-sm text-black">{product.name}</div>
-                          <div className="text-xs text-gray-600">৳{parseFloat(product.current_price).toFixed(0)}.00</div>
+                          <div className="relative w-full aspect-square mb-2 rounded overflow-hidden bg-gray-100">
+                            {getImageUrl(product.image) ? (
+                              <Image
+                                src={getImageUrl(product.image)!}
+                                alt={product.name}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <span className="text-gray-400 text-xs">No Image</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="font-medium text-xs text-black line-clamp-2 leading-tight mb-1">{product.name}</div>
+                          <div className="text-xs text-gray-600 font-semibold">৳{parseFloat(product.current_price).toFixed(0)}.00</div>
                         </button>
                       ))}
                     </div>
@@ -478,12 +688,6 @@ function OrderPageContent() {
             {/* Order Form */}
             <div className="bg-white rounded-lg p-6 border border-gray-200">
               <h2 className="text-xl font-semibold text-black mb-6">গ্রাহকের তথ্য</h2>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm mb-4">
-                  {error}
-                </div>
-              )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -570,6 +774,12 @@ function OrderPageContent() {
                     </label>
                   </div>
                 </div>
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm">
+                    {error}
+                  </div>
+                )}
 
                 <button
                   type="submit"
