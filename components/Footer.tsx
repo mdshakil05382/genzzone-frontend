@@ -129,6 +129,21 @@ export function Footer() {
             </div>
           </div>
         </div>
+
+        {/* Copyright & Developed By Credit */}
+        <div className="text-center text-sm text-gray-500">
+          <p>
+            © 2026 Gen-Z Zone. All rights reserved. | Developed by{' '}
+            <a
+              href="https://wa.me/8801601571480"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-gray-700 hover:text-green-600 transition-colors"
+            >
+              Mushfikur Rahman
+            </a>
+          </p>
+        </div>
       </div>
     </footer>
   );
