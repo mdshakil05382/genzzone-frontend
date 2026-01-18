@@ -773,9 +773,6 @@ function OrderPageContent() {
                     className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black"
                     placeholder="+8801XXXXXXXXX"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    বাংলাদেশি নাম্বার (+880 দিয়ে শুরু, মোট ১৪ অক্ষর)
-                  </p>
                 </div>
 
                 <div>
