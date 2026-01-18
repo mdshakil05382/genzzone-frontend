@@ -61,6 +61,9 @@ export interface Product {
   current_price: string;
   has_offer: boolean;
   image: string | null;
+  image2: string | null;
+  image3: string | null;
+  image4: string | null;
   stock: number;
   is_active: boolean;
   created_at: string;

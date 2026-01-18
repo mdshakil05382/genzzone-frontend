@@ -3,9 +3,242 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Product, productApi, getImageUrl } from '@/lib/api';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Share2, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
 import { ProductCard } from '@/components/ProductCard';
+
+// Image Gallery Component
+function ProductImageGallery({ product }: { product: Product }) {
+  const images = [
+    product.image,
+    product.image2,
+    product.image3,
+    product.image4,
+  ].filter(Boolean) as string[];
+
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  if (images.length === 0) {
+    return (
+      <div className="w-full aspect-square bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center rounded-lg">
+        <span className="text-gray-500 text-lg">No Image</span>
+      </div>
+    );
+  }
+
+  const handlePrevious = () => {
+    setActiveIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+  };
+
+  const handleNext = () => {
+    setActiveIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+  };
+
+  return (
+    <div className="flex gap-4">
+      {/* Thumbnails - Left side on desktop */}
+      {images.length > 1 && (
+        <div className="hidden md:flex flex-col gap-2 w-20">
+          {images.map((img, index) => (
+            <button
+              key={index}
+              onClick={() => setActiveIndex(index)}
+              className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                activeIndex === index
+                  ? 'border-black'
+                  : 'border-gray-200 hover:border-gray-400'
+              }`}
+            >
+              <Image
+                src={getImageUrl(img)!}
+                alt={`${product.name} thumbnail ${index + 1}`}
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Main Image */}
+      <div className="flex-1 relative">
+        <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-white">
+          <Image
+            src={getImageUrl(images[activeIndex])!}
+            alt={product.name}
+            fill
+            className="object-cover"
+            unoptimized
+          />
+          
+          {/* Navigation arrows for mobile and when multiple images */}
+          {images.length > 1 && (
+            <>
+              <button
+                onClick={handlePrevious}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/80 hover:bg-white rounded-full flex items-center justify-center shadow-md transition-colors"
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="w-6 h-6 text-black" />
+              </button>
+              <button
+                onClick={handleNext}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/80 hover:bg-white rounded-full flex items-center justify-center shadow-md transition-colors"
+                aria-label="Next image"
+              >
+                <ChevronRight className="w-6 h-6 text-black" />
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Mobile thumbnails - Below main image */}
+        {images.length > 1 && (
+          <div className="flex md:hidden gap-2 mt-3 justify-center">
+            {images.map((img, index) => (
+              <button
+                key={index}
+                onClick={() => setActiveIndex(index)}
+                className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                  activeIndex === index
+                    ? 'border-black'
+                    : 'border-gray-200 hover:border-gray-400'
+                }`}
+              >
+                <Image
+                  src={getImageUrl(img)!}
+                  alt={`${product.name} thumbnail ${index + 1}`}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Image counter for mobile */}
+        {images.length > 1 && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 md:hidden bg-black/60 text-white text-sm px-3 py-1 rounded-full">
+            {activeIndex + 1} / {images.length}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Share Button Component
+function ShareButton({ product }: { product: Product }) {
+  const [copied, setCopied] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+
+  const productUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const shareText = `Check out ${product.name} on GEN-Z ZONE!`;
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(productUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const handleShare = async () => {
+    // Try native share API first (mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: product.name,
+          text: shareText,
+          url: productUrl,
+        });
+      } catch (err) {
+        // User cancelled or share failed
+        console.log('Share cancelled');
+      }
+    } else {
+      // Fallback to showing share menu
+      setShowShareMenu(!showShareMenu);
+    }
+  };
+
+  const shareLinks = [
+    {
+      name: 'Facebook',
+      url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}`,
+      color: 'bg-blue-600 hover:bg-blue-700',
+    },
+    {
+      name: 'WhatsApp',
+      url: `https://wa.me/?text=${encodeURIComponent(shareText + ' ' + productUrl)}`,
+      color: 'bg-green-500 hover:bg-green-600',
+    },
+    {
+      name: 'Twitter',
+      url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(productUrl)}`,
+      color: 'bg-sky-500 hover:bg-sky-600',
+    },
+  ];
+
+  return (
+    <div className="relative">
+      <button
+        onClick={handleShare}
+        className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+        aria-label="Share product"
+      >
+        <Share2 className="w-5 h-5" />
+        <span className="hidden sm:inline">Share</span>
+      </button>
+
+      {/* Share menu dropdown (for desktop without native share) */}
+      {showShareMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowShareMenu(false)}
+          />
+          <div className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-50 min-w-[200px]">
+            <div className="space-y-2">
+              {shareLinks.map((link) => (
+                <a
+                  key={link.name}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`block w-full text-center text-white py-2 px-4 rounded-lg text-sm font-medium ${link.color}`}
+                  onClick={() => setShowShareMenu(false)}
+                >
+                  {link.name}
+                </a>
+              ))}
+              <button
+                onClick={handleCopyLink}
+                className="w-full flex items-center justify-center gap-2 py-2 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4 text-green-600" />
+                    <span className="text-green-600">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Copy Link</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -92,37 +325,28 @@ export default function ProductDetailPage() {
         </button>
 
         <div className="grid md:grid-cols-2 gap-12">
-          {/* Product Image */}
-          <div className="bg-white rounded-lg overflow-hidden">
-            {getImageUrl(product.image) ? (
-              <div className="relative w-full aspect-square">
-                <Image
-                  src={getImageUrl(product.image)!}
-                  alt={product.name}
-                  fill
-                  className="object-cover"
-                  unoptimized
-                />
-              </div>
-            ) : (
-              <div className="w-full aspect-square bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                <span className="text-gray-500 text-lg">No Image</span>
-              </div>
-            )}
+          {/* Product Image Gallery */}
+          <div className="bg-white rounded-lg p-4">
+            <ProductImageGallery product={product} />
           </div>
 
           {/* Product Details */}
           <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-black mb-4">
-                {product.name}
-              </h1>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <h1 className="text-3xl md:text-4xl font-bold text-black mb-4">
+                  {product.name}
+                </h1>
+                
+                {isOutOfStock && (
+                  <div className="inline-block bg-black text-white px-3 py-1 rounded text-sm font-bold uppercase mb-4">
+                    Sold Out
+                  </div>
+                )}
+              </div>
               
-              {isOutOfStock && (
-                <div className="inline-block bg-black text-white px-3 py-1 rounded text-sm font-bold uppercase mb-4">
-                  Sold Out
-                </div>
-              )}
+              {/* Share Button */}
+              <ShareButton product={product} />
             </div>
 
             <div className="space-y-2 border-b border-gray-200 pb-6">
