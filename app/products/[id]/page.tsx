@@ -437,7 +437,11 @@ export default function ProductDetailPage() {
 
   const handleOrder = () => {
     if (!isOutOfStock) {
-      router.push(`/order?productId=${product.id}`);
+      const params = new URLSearchParams({ productId: product.id.toString() });
+      if (selectedColor) {
+        params.append('colorId', selectedColor.id.toString());
+      }
+      router.push(`/order?${params.toString()}`);
     }
   };
 

@@ -181,6 +181,7 @@ function OrderPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const productId = searchParams.get('productId') ? parseInt(searchParams.get('productId')!) : null;
+  const colorId = searchParams.get('colorId') ? parseInt(searchParams.get('colorId')!) : null;
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -238,13 +239,25 @@ function OrderPageContent() {
       try {
         setLoading(true);
         const data = await productApi.getById(productId);
-        // Initialize with the first product and first active color if available
+        // Initialize with the first product and selected color from URL or first active color
         const activeColors = data.colors?.filter(c => c.is_active).sort((a, b) => a.order - b.order) || [];
+        let selectedColor: ProductColor | null = null;
+        
+        // If colorId is provided in URL, find and use that color
+        if (colorId && activeColors.length > 0) {
+          selectedColor = activeColors.find(c => c.id === colorId) || null;
+        }
+        
+        // If no color found from URL or no colorId provided, use first active color
+        if (!selectedColor && activeColors.length > 0) {
+          selectedColor = activeColors[0];
+        }
+        
         setOrderItems([{
           product: data,
           quantity: 1,
           product_size: '',
-          selectedColor: activeColors.length > 0 ? activeColors[0] : null,
+          selectedColor: selectedColor,
         }]);
       } catch (err) {
         setError('পণ্য পাওয়া যায়নি');
@@ -253,7 +266,7 @@ function OrderPageContent() {
       }
     }
     fetchProduct();
-  }, [productId]);
+  }, [productId, colorId]);
 
   useEffect(() => {
     async function fetchAvailableProducts() {
@@ -580,12 +593,15 @@ function OrderPageContent() {
                     অর্ডার করা পণ্য
                   </h3>
                   <div className="space-y-3">
-                    {completedOrder.items.map((item, index) => (
+                    {completedOrder.items.map((item, index) => {
+                      // Use selected color's image if available, otherwise fall back to product image
+                      const imageToDisplay = item.selectedColor?.image || item.product.image;
+                      return (
                       <div key={index} className="flex items-center gap-4 bg-gray-50 rounded-lg p-3">
-                        {getImageUrl(item.product.image) ? (
+                        {getImageUrl(imageToDisplay) ? (
                           <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden">
                             <Image
-                              src={getImageUrl(item.product.image)!}
+                              src={getImageUrl(imageToDisplay)!}
                               alt={item.product.name}
                               fill
                               className="object-cover"
@@ -614,7 +630,8 @@ function OrderPageContent() {
                           )}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -698,21 +715,25 @@ function OrderPageContent() {
                   return (
                     <div key={`${item.product.id}-${index}`} className="border border-gray-200 rounded p-4">
                       <div className="flex gap-4 mb-3">
-                        {getImageUrl(item.product.image) ? (
-                          <div className="relative w-20 h-20 flex-shrink-0">
-                            <Image
-                              src={getImageUrl(item.product.image)!}
-                              alt={item.product.name}
-                              fill
-                              className="object-cover rounded"
-                              unoptimized
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
-                            <span className="text-gray-400 text-xs">No Image</span>
-                          </div>
-                        )}
+                        {(() => {
+                          // Use selected color's image if available, otherwise fall back to product image
+                          const imageToDisplay = item.selectedColor?.image || item.product.image;
+                          return getImageUrl(imageToDisplay) ? (
+                            <div className="relative w-20 h-20 flex-shrink-0">
+                              <Image
+                                src={getImageUrl(imageToDisplay)!}
+                                alt={item.product.name}
+                                fill
+                                className="object-cover rounded"
+                                unoptimized
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-20 h-20 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
+                              <span className="text-gray-400 text-xs">No Image</span>
+                            </div>
+                          );
+                        })()}
                         <div className="flex-1">
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
