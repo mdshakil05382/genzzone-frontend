@@ -524,11 +524,12 @@ export default function ProductDetailPage() {
               </button>
               <button
                 onClick={() => setIsWishlisted(!isWishlisted)}
+                disabled
                 className={`w-14 flex items-center justify-center border transition-all ${
                   isWishlisted 
                     ? 'border-red-500 bg-red-50' 
                     : 'border-gray-300 hover:border-gray-400'
-                }`}
+                } opacity-50 cursor-not-allowed`}
                 aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
               >
                 <Heart 

@@ -205,7 +205,7 @@ function OrderPageContent() {
     customer_name: '',
     district: 'outside_dhaka',
     address: '',
-    phone_number: '+880',
+    phone_number: '',
   });
   
   // Size options (excluding the placeholder)
@@ -298,27 +298,15 @@ function OrderPageContent() {
     const { name, value } = e.target;
     
     if (name === 'phone_number') {
-      // Handle phone number with +880 prefix
-      let phoneValue = value;
+      // Only allow digits
+      const phoneValue = value.replace(/\D/g, '');
       
-      // If user tries to delete the +880 prefix, keep it
-      if (!phoneValue.startsWith('+880') && phoneValue.length > 0) {
-        // Remove any leading + or 880 if partially typed
-        phoneValue = phoneValue.replace(/^\+?8?8?0?/, '');
-        phoneValue = '+880' + phoneValue;
-      }
-      
-      // Only allow digits after +880
-      const prefix = '+880';
-      const afterPrefix = phoneValue.slice(4).replace(/\D/g, '');
-      phoneValue = prefix + afterPrefix;
-      
-      // Limit to 13 characters total (+880 + 10 digits)
-      phoneValue = phoneValue.slice(0, 14);
+      // Limit to 11 digits (Bangladesh phone numbers)
+      const limitedValue = phoneValue.slice(0, 11);
       
       setFormData(prev => ({
         ...prev,
-        phone_number: phoneValue,
+        phone_number: limitedValue,
       }));
       return;
     }
@@ -394,15 +382,15 @@ function OrderPageContent() {
       setError('অনুগ্রহ করে আপনার ঠিকানা লিখুন');
       return;
     }
-    if (!formData.phone_number.trim() || formData.phone_number === '+880') {
+    if (!formData.phone_number.trim()) {
       setError('অনুগ্রহ করে আপনার মোবাইল নাম্বার লিখুন');
       return;
     }
     
-    // Validate Bangladesh phone number: must start with +880 and be exactly 14 characters
-    const phoneRegex = /^\+880\d{10}$/;
+    // Validate Bangladesh phone number: must be 11 digits
+    const phoneRegex = /^\d{11}$/;
     if (!phoneRegex.test(formData.phone_number)) {
-      setError('মোবাইল নাম্বার +880 দিয়ে শুরু হতে হবে এবং মোট ১৪ অক্ষর হতে হবে (যেমন: +8801XXXXXXXXX)');
+      setError('মোবাইল নাম্বার ১১ সংখ্যার হতে হবে (যেমন: 01XXXXXXXXX)');
       return;
     }
 
@@ -964,7 +952,7 @@ function OrderPageContent() {
                     onChange={handleInputChange}
                     required
                     className="w-full px-4 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-black"
-                    placeholder="+8801XXXXXXXXX"
+                    placeholder="01XXXXXXXXX"
                   />
                 </div>
 
