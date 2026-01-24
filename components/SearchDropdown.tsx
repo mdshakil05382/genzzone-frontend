@@ -25,7 +25,7 @@ export function SearchDropdown({ isMobile = false, placeholder = "Search product
   const [hasSearched, setHasSearched] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const debounceTimer = useRef<NodeJS.Timeout>();
+  const debounceTimer = useRef<NodeJS.Timeout | undefined>(undefined);
   const [isFocused, setIsFocused] = useState(false);
 
   // Debounced search function
