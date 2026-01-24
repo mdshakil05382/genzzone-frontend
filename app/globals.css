@@ -75,6 +75,12 @@ a, button {
   transition: all 0.2s ease-in-out;
 }
 
+/* Prevent scroll behavior on input focus */
+input:focus {
+  scroll-margin: 0;
+  scroll-behavior: auto;
+}
+
 /* Hide scrollbar */
 ::-webkit-scrollbar {
   display: none;

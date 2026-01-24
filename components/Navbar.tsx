@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Search, ShoppingBag, Menu, X, Camera, Heart, User, ChevronRight, ChevronDown } from 'lucide-react';
 import { notificationApi, categoryApi, Notification, Category } from '@/lib/api';
+import { SearchDropdown } from './SearchDropdown';
 
 const placeholders = [
   'SEARCH BY NAME',
@@ -17,7 +18,6 @@ export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [orderId, setOrderId] = useState('');
   const [notification, setNotification] = useState<Notification | null>(null);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
@@ -100,59 +100,24 @@ export function Navbar() {
     }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
-      closeMobileMenu();
-    }
-  };
 
   return (
     <nav className="bg-white sticky top-0 z-50 border-b border-gray-200">
       {/* Mobile Search Bar */}
       <div className="md:hidden bg-black">
         <div className="container mx-auto px-4 py-3">
-          <form onSubmit={handleSearch} className="flex items-center">
-            <div className="flex items-center flex-1 bg-white rounded-md px-3 py-2">
-              <input
-                id="search-input"
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={placeholders[placeholderIndex]}
-                className="flex-1 bg-transparent focus:outline-none text-xs text-gray-800 placeholder-gray-500"
-              />
-              <button
-                type="button"
-                className="ml-2 p-1 rounded-md bg-white opacity-30 cursor-not-allowed pointer-events-none"
-                aria-label="Search by image"
-                disabled
-              >
-                <Camera className="w-5 h-5 text-black" />
-              </button>
-            </div>
-          </form>
+          <SearchDropdown 
+            isMobile={true} 
+            placeholder={placeholders[placeholderIndex]}
+            onClose={closeMobileMenu}
+          />
         </div>
       </div>
 
       {/* Desktop Top Bar with Logo, Search, and Icons */}
       <div className="hidden md:block border-b border-gray-200">
         <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            {/* Hamburger Menu (Mobile Only) */}
-            <button
-              onClick={toggleMobileMenu}
-              className="md:hidden w-6 h-6 flex items-center justify-center flex-shrink-0"
-              aria-label="Toggle menu"
-            >
-              {isMobileMenuOpen ? (
-                <X className="w-6 h-6 text-black" />
-              ) : (
-                <Menu className="w-6 h-6 text-black" />
-              )}
-            </button>
-
+          <div className="flex items-center gap-4">
             {/* Logo */}
             <Link 
               href="/" 
@@ -175,33 +140,14 @@ export function Navbar() {
             </Link>
 
             {/* Centered Search Bar */}
-            <form onSubmit={handleSearch} className="flex items-center flex-1 max-w-2xl mx-4">
-              <div className="relative w-full flex items-center bg-gray-100 rounded-md border border-gray-300">
-                <input
-                  id="search-input"
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+            <div className="flex-1 flex justify-center">
+              <div className="w-full max-w-2xl">
+                <SearchDropdown 
+                  isMobile={false} 
                   placeholder={placeholders[placeholderIndex]}
-                  className="flex-1 px-4 py-2 bg-transparent focus:outline-none text-black placeholder-gray-500 text-sm"
                 />
-                <button
-                  type="button"
-                  className="p-2 hover:bg-gray-200 rounded-r-md opacity-30 cursor-not-allowed pointer-events-none"
-                  aria-label="Search by image"
-                  disabled
-                >
-                  <Camera className="w-5 h-5 text-gray-600" />
-                </button>
-                <button
-                  type="submit"
-                  className="p-2 hover:bg-gray-200 rounded-r-md border-l border-gray-300"
-                  aria-label="Search"
-                >
-                  <Search className="w-5 h-5 text-gray-600" />
-                </button>
               </div>
-            </form>
+            </div>
 
             {/* Right Icons */}
             <div className="flex items-center gap-3 flex-shrink-0">
