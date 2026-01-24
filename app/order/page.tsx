@@ -423,7 +423,7 @@ function OrderPageContent() {
           product_id: item.product.id,
           product_name: item.product.name,
           product_size: item.product_size.trim() || '',
-          product_color: item.selectedColor?.name || null,
+          product_color: item.selectedColor?.name || '',
           product_image: item.product.image ? getImageUrl(item.product.image) : null,
           quantity: item.quantity,
           unit_price: parseFloat(unitPrice.toFixed(2)),
@@ -503,7 +503,7 @@ function OrderPageContent() {
       items: completedOrder.items.map((item) => ({
         name: item.product.name,
         size: item.product_size,
-        color: item.selectedColor?.name || null,
+        color: item.selectedColor?.name || '',
         quantity: item.quantity,
         unitPrice: parseFloat(item.product.current_price),
         total: parseFloat(item.product.current_price) * item.quantity,

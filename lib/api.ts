@@ -171,7 +171,7 @@ export interface CreateOrderProductItem {
   product_id: number;
   product_name: string;
   product_size: string;
-  product_color: string | null;
+  product_color: string;
   product_image: string | null;
   quantity: number;
   unit_price: number;
