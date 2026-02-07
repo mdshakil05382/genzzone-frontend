@@ -3,13 +3,18 @@ import axios from 'axios';
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.genzzone.com';
 
 // Function to get CSRF token from cookies
-function getCsrfToken() {
+function getCsrfToken(): string | null {
   if (typeof document === 'undefined') return null;
   const name = 'csrftoken';
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  if (parts.length === 2) return parts.pop()?.split(';').shift()?.trim() || null;
   return null;
+}
+
+/** Call before POST if you got 403 CSRF - fetches /api/csrf/ so the cookie is set, then next request can send the token. */
+export async function ensureCsrfCookie(): Promise<void> {
+  await fetch(`${API_BASE_URL}/api/csrf/`, { credentials: 'include', method: 'GET' });
 }
 
 // Create axios instance with default config
@@ -29,6 +34,18 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Log 403/5xx for debugging (e.g. wrong API URL or CSRF)
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const status = err.response?.status;
+    if (status === 403 || (status && status >= 500)) {
+      console.error('[API error]', status, err.config?.baseURL + err.config?.url, err.response?.data);
+    }
+    return Promise.reject(err);
+  }
+);
 
 // Types
 export interface CategoryChild {
@@ -58,6 +75,12 @@ export interface ProductColor {
   is_active: boolean;
 }
 
+/** One size dimension for a product, e.g. { label: "Shirt Size", options: ["S", "M", "L"] } */
+export interface ProductSizeOption {
+  label: string;
+  options: string[];
+}
+
 export interface Product {
   id: number;
   name: string;
@@ -75,6 +98,8 @@ export interface Product {
   stock: number;
   is_active: boolean;
   colors: ProductColor[];
+  /** Size options from backend; default [{"label": "Size", "options": ["One Size"]}] when empty */
+  size_options: ProductSizeOption[];
   created_at: string;
   updated_at: string;
 }
@@ -190,10 +215,27 @@ export interface CreateOrderData {
   quantity: number;
 }
 
+/**
+ * One product line item in the place-order payload.
+ * Uses product_sizes (label -> selected value) for the new multi-size implementation.
+ *
+ * Example JSON for one product:
+ * {
+ *   "product_id": 1,
+ *   "product_name": "Combo Shirt + Pants",
+ *   "product_sizes": { "Shirt Size": "M", "Pants Size": "30" },
+ *   "product_color": "Navy",
+ *   "product_image": "https://...",
+ *   "quantity": 1,
+ *   "unit_price": 1299.00,
+ *   "product_total": 1299.00
+ * }
+ */
 export interface CreateOrderProductItem {
   product_id: number;
   product_name: string;
-  product_size: string;
+  /** Selected size values by option label. Primary field for sizes (replaces product_size). */
+  product_sizes: Record<string, string>;
   product_color: string;
   product_image: string | null;
   quantity: number;
@@ -201,6 +243,21 @@ export interface CreateOrderProductItem {
   product_total: number;
 }
 
+/**
+ * Full payload sent when user clicks "Place Order".
+ *
+ * Example top-level JSON:
+ * {
+ *   "customer_name": "...",
+ *   "district": "Dhaka" | "Outside Dhaka",
+ *   "address": "...",
+ *   "phone_number": "01XXXXXXXXX",
+ *   "products": [ CreateOrderProductItem, ... ],
+ *   "product_total": 2598.00,
+ *   "delivery_charge": 80,
+ *   "total_price": 2678.00
+ * }
+ */
 export interface CreateMultiProductOrderData {
   customer_name: string;
   district: string;
@@ -281,13 +338,7 @@ export const cartApi = {
 
 // Tracking codes (e.g. Meta Pixel) - for frontend script injection
 export interface TrackingCodeItem {
-  id: number;
-  script_id: string;
-  name: string;
   script_content: string;
-  noscript_content: string;
-  placement: 'head' | 'body';
-  order: number;
 }
 
 export const trackingApi = {

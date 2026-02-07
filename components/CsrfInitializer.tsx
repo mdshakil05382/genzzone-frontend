@@ -2,12 +2,13 @@
 
 import { useEffect } from 'react';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dash.genzzone.com';
+
 export function CsrfInitializer() {
   useEffect(() => {
-    // Fetch CSRF token on app initialization
     const initCsrf = async () => {
       try {
-        await fetch('https://api.genzzone.com/api/csrf/', {
+        await fetch(`${API_BASE_URL}/api/csrf/`, {
           credentials: 'include',
         });
       } catch (error) {

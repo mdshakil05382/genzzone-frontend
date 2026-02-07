@@ -2,15 +2,35 @@
 
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Product, ProductColor, productApi, getImageUrl, orderApi, CreateMultiProductOrderData, Order } from '@/lib/api';
+import { Product, ProductColor, ProductSizeOption, productApi, getImageUrl, orderApi, CreateMultiProductOrderData, CreateOrderProductItem, Order, ensureCsrfCookie } from '@/lib/api';
+import { trackPurchase } from '@/lib/pixel';
 import { ArrowLeft, Plus, X, Minus, CheckCircle, Download, ShoppingBag, Eye } from 'lucide-react';
 import Image from 'next/image';
 import { generateOrderPDF, OrderPDFData } from '@/lib/generateOrderPDF';
 
+const DEFAULT_SIZE_OPTIONS: ProductSizeOption[] = [{ label: 'Size', options: ['One Size'] }];
+
+function getSizeOptions(product: Product): ProductSizeOption[] {
+  if (product.size_options && Array.isArray(product.size_options) && product.size_options.length > 0) {
+    return product.size_options.filter(
+      (o): o is ProductSizeOption => typeof o?.label === 'string' && Array.isArray(o?.options)
+    );
+  }
+  return DEFAULT_SIZE_OPTIONS;
+}
+
+function formatProductSizeDisplay(product_sizes: Record<string, string>): string {
+  const parts = Object.entries(product_sizes)
+    .filter(([, v]) => v?.trim())
+    .map(([k, v]) => `${k}: ${v}`);
+  return parts.join(', ');
+}
+
 interface OrderItem {
   product: Product;
   quantity: number;
-  product_size: string;
+  /** Selected size value per label, e.g. { "Shirt Size": "M", "Pants Size": "30" } */
+  product_sizes: Record<string, string>;
   selectedColor: ProductColor | null;
 }
 
@@ -208,13 +228,6 @@ function OrderPageContent() {
     phone_number: '',
   });
   
-  // Size options (excluding the placeholder)
-  const sizeOptions = [
-    { value: 'M', label: 'M' },
-    { value: 'L', label: 'L' },
-    { value: 'XL', label: 'XL' },
-  ];
-  
   // Calculate delivery charge based on district selection
   const getDeliveryCharge = () => {
     if (!formData.district) return 0;
@@ -256,7 +269,7 @@ function OrderPageContent() {
         setOrderItems([{
           product: data,
           quantity: 1,
-          product_size: '',
+          product_sizes: {},
           selectedColor: selectedColor,
         }]);
       } catch (err) {
@@ -323,10 +336,16 @@ function OrderPageContent() {
     ));
   };
 
-  const handleItemSizeChange = (index: number, size: string) => {
-    setOrderItems(prev => prev.map((item, i) => 
-      i === index ? { ...item, product_size: item.product_size === size ? '' : size } : item
-    ));
+  const handleItemSizeChange = (index: number, label: string, value: string) => {
+    setOrderItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      const current = item.product_sizes[label];
+      const next = current === value ? '' : value;
+      return {
+        ...item,
+        product_sizes: { ...item.product_sizes, [label]: next },
+      };
+    }));
   };
 
   const handleAddProduct = (product: Product) => {
@@ -334,7 +353,7 @@ function OrderPageContent() {
     setOrderItems(prev => [...prev, {
       product,
       quantity: 1,
-      product_size: '',
+      product_sizes: {},
       selectedColor: activeColors.length > 0 ? activeColors[0] : null,
     }]);
     setShowProductSelector(false);
@@ -394,11 +413,14 @@ function OrderPageContent() {
       return;
     }
 
-    // Validate all items
+    // Validate all items: each size option must have a selection
     for (const item of orderItems) {
-      if (!item.product_size) {
-        setError(`${item.product.name} এর জন্য সাইজ নির্বাচন করুন`);
-        return;
+      const sizeOpts = getSizeOptions(item.product);
+      for (const opt of sizeOpts) {
+        if (!(item.product_sizes[opt.label]?.trim())) {
+          setError(`${item.product.name} এর জন্য ${opt.label} নির্বাচন করুন`);
+          return;
+        }
       }
       if (item.quantity < 1) {
         setError(`${item.product.name} এর পরিমাণ কমপক্ষে 1 হতে হবে`);
@@ -414,15 +436,16 @@ function OrderPageContent() {
     setSubmitting(true);
 
     try {
-      // Build products array for multi-product order
-      const products = orderItems.map(item => {
+      // Build place-order payload: each product includes product_sizes (label -> value) for backend
+      const products: CreateOrderProductItem[] = orderItems.map(item => {
         const unitPrice = parseFloat(item.product.current_price);
         const itemTotal = unitPrice * item.quantity;
-        
+        const product_sizes = { ...item.product_sizes };
+        Object.keys(product_sizes).forEach(k => { if (!product_sizes[k]?.trim()) delete product_sizes[k]; });
         return {
           product_id: item.product.id,
           product_name: item.product.name,
-          product_size: item.product_size.trim() || '',
+          product_sizes,
           product_color: item.selectedColor?.name || '',
           product_image: item.product.image ? getImageUrl(item.product.image) : null,
           quantity: item.quantity,
@@ -431,7 +454,6 @@ function OrderPageContent() {
         };
       });
 
-      // Create single order with multiple products
       const orderData: CreateMultiProductOrderData = {
         customer_name: formData.customer_name.trim(),
         district: getDistrictForAPI(),
@@ -443,8 +465,33 @@ function OrderPageContent() {
         total_price: parseFloat(getTotalPrice().toFixed(2)),
       };
 
-      const order = await orderApi.createMultiProduct(orderData);
-      
+      // Ensure CSRF cookie is set before POST (in case CsrfInitializer hadn't completed)
+      await ensureCsrfCookie();
+
+      let order: Order;
+      try {
+        order = await orderApi.createMultiProduct(orderData);
+      } catch (firstErr: any) {
+        // Retry once on 403 CSRF: fetch cookie then resend (backend may require token if csrf_exempt not deployed)
+        const isCsrf403 = firstErr.response?.status === 403 && String(firstErr.response?.data?.detail || '').includes('CSRF');
+        if (isCsrf403) {
+          await ensureCsrfCookie();
+          order = await orderApi.createMultiProduct(orderData);
+        } else {
+          throw firstErr;
+        }
+      }
+
+      // Fire Meta Pixel Purchase only for this completed order (once per real purchase)
+      trackPurchase({
+        value: getTotalPrice(),
+        currency: 'BDT',
+        order_id: order.id,
+        content_ids: orderItems.map((item) => String(item.product.id)),
+        content_type: 'product',
+        num_items: orderItems.reduce((sum, item) => sum + item.quantity, 0),
+      });
+
       // Store completed order data for success screen
       setCompletedOrder({
         order,
@@ -454,14 +501,33 @@ function OrderPageContent() {
         totalPrice: getTotalPrice(),
         district: getDistrictForAPI(),
       });
-      
+
       setSuccess(true);
     } catch (err: any) {
-      setError(
-        err.response?.data?.error || 
-        err.response?.data?.message || 
-        'অর্ডার তৈরি করতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।'
-      );
+      const status = err.response?.status;
+      const data = err.response?.data;
+      const requestURL = err.config?.baseURL + err.config?.url;
+
+      // Log full error for debugging (403 often = CSRF, wrong API URL, or proxy)
+      console.error('[Order submit failed]', {
+        status,
+        requestURL,
+        responseData: data,
+        message: err.message,
+      });
+
+      let errorMessage = 'অর্ডার তৈরি করতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।';
+      if (data) {
+        if (typeof data === 'string') errorMessage = data;
+        else if (data.detail) errorMessage = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+        else if (data.error) errorMessage = data.error;
+        else if (data.message) errorMessage = data.message;
+        else if (typeof data === 'object' && Object.keys(data).length > 0) errorMessage = JSON.stringify(data);
+      }
+      if (status === 403) {
+        errorMessage += ' (403: সম্ভবত API ঠিকানা ভুল বা সার্ভার ব্লক করছে। NEXT_PUBLIC_API_URL আপনার Django ব্যাকেন্ড URL হতে হবে, dash.genzzone.com নয়।)';
+      }
+      setError(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -502,7 +568,7 @@ function OrderPageContent() {
       paymentMethod: 'Cash on Delivery (COD)',
       items: completedOrder.items.map((item) => ({
         name: item.product.name,
-        size: item.product_size,
+        size: formatProductSizeDisplay(item.product_sizes),
         color: item.selectedColor?.name || '',
         quantity: item.quantity,
         unitPrice: parseFloat(item.product.current_price),
@@ -611,7 +677,7 @@ function OrderPageContent() {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-gray-900 truncate">{item.product.name}</p>
                           <p className="text-sm text-gray-600">
-                            সাইজ: {item.product_size}{item.selectedColor ? ` | রঙ: ${item.selectedColor.name}` : ''} | পরিমাণ: {item.quantity}
+                            সাইজ: {formatProductSizeDisplay(item.product_sizes)}{item.selectedColor ? ` | রঙ: ${item.selectedColor.name}` : ''} | পরিমাণ: {item.quantity}
                           </p>
                         </div>
                         <div className="text-right flex-shrink-0">
@@ -805,28 +871,30 @@ function OrderPageContent() {
                         </p>
                       </div>
 
-                      {/* Size Selector */}
-                      <div className="mb-2">
-                        <label className="block text-sm font-medium text-black mb-2">
-                          পণ্যের সাইজ <span className="text-red-500">*</span>
-                        </label>
-                        <div className="flex gap-2 flex-wrap">
-                          {sizeOptions.map((option) => (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => handleItemSizeChange(index, option.value)}
-                              className={`px-3 py-1 text-sm border-2 rounded transition-colors font-medium cursor-pointer ${
-                                item.product_size === option.value
-                                  ? 'bg-black text-white border-black'
-                                  : 'bg-white text-black border-gray-300 hover:border-black'
-                              }`}
-                            >
-                              {option.label}
-                            </button>
-                          ))}
+                      {/* Size Selector(s) - one block per size option from backend */}
+                      {getSizeOptions(item.product).map((sizeOpt) => (
+                        <div key={sizeOpt.label} className="mb-2">
+                          <label className="block text-sm font-medium text-black mb-2">
+                            {sizeOpt.label} <span className="text-red-500">*</span>
+                          </label>
+                          <div className="flex gap-2 flex-wrap">
+                            {sizeOpt.options.map((optionValue) => (
+                              <button
+                                key={optionValue}
+                                type="button"
+                                onClick={() => handleItemSizeChange(index, sizeOpt.label, optionValue)}
+                                className={`px-3 py-1 text-sm border-2 rounded transition-colors font-medium cursor-pointer ${
+                                  item.product_sizes[sizeOpt.label] === optionValue
+                                    ? 'bg-black text-white border-black'
+                                    : 'bg-white text-black border-gray-300 hover:border-black'
+                                }`}
+                              >
+                                {optionValue}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      ))}
 
                       {isOutOfStock && (
                         <div className="bg-red-50 border border-red-200 rounded p-2 text-red-700 text-xs mt-2">
